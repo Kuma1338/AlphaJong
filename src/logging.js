@@ -62,6 +62,115 @@ function printTilePriority(tiles) {
 	}
 }
 
+function getLocalizedStrategyName(strategyName) {
+	return STRATEGY_NAME_CN[strategyName] || strategyName;
+}
+
+function getTilePriorityDetails(tilePrio, prefix = "弃牌") {
+	if (tilePrio == null || typeof tilePrio.tile == 'undefined') {
+		return "";
+	}
+
+	var score = isClosed ? tilePrio.score.closed : tilePrio.score.open;
+	return prefix + ": " + getTileName(tilePrio.tile, false) +
+		"; 向听 " + Number(tilePrio.shanten).toFixed(0) +
+		"; 危险度 " + Number(tilePrio.danger).toFixed(1) +
+		"; 听牌数 " + Number(tilePrio.waits).toFixed(1) +
+		"; 预估打点 " + Number(score).toFixed(0) +
+		"; 策略 " + getLocalizedStrategyName(strategy);
+}
+
+function recordDecision(detail) {
+	if (detail == null || detail == "") {
+		return;
+	}
+
+	var mode = "";
+	var debugString = "";
+	try {
+		mode = getNumberOfPlayers() + "人";
+		debugString = getDebugString();
+	}
+	catch {
+		mode = "未知玩法";
+	}
+
+	decisionHistory.unshift({
+		time: new Date().toLocaleTimeString(),
+		mode: mode,
+		detail: detail,
+		debugString: debugString
+	});
+
+	if (decisionHistory.length > DECISION_HISTORY_LIMIT) {
+		decisionHistory.pop();
+	}
+}
+
+function getDecisionHistoryText() {
+	if (decisionHistory.length == 0) {
+		return "暂无决策记录。";
+	}
+
+	return decisionHistory.map(function (entry, index) {
+		var debugLine = entry.debugString == "" ? "" : "\n调试: " + entry.debugString;
+		return (index + 1) + ". [" + entry.time + "][" + entry.mode + "] " + entry.detail + debugLine;
+	}).join("\n\n");
+}
+
+function getConfigSnapshot() {
+	var config = {};
+	for (let field of CONFIG_FIELDS) {
+		config[field.key] = getConfigValue(field.key);
+	}
+	config.EFFECTIVE_SAFETY = getEffectiveSafety();
+	config.EFFECTIVE_CALL_PON_CHI = getEffectiveCallPonChi();
+	config.EFFECTIVE_CALL_KAN = getEffectiveCallKan();
+	config.EFFECTIVE_RIICHI = getEffectiveRiichi();
+	return config;
+}
+
+function getDecisionHistoryExportData() {
+	return {
+		exportedAt: new Date().toISOString(),
+		version: typeof GM_info != 'undefined' && GM_info.script ? GM_info.script.version : "unknown",
+		config: getConfigSnapshot(),
+		decisions: decisionHistory.slice()
+	};
+}
+
+function getBugReportExportData() {
+	var data = {
+		exportedAt: new Date().toISOString(),
+		version: typeof GM_info != 'undefined' && GM_info.script ? GM_info.script.version : "unknown",
+		config: getConfigSnapshot(),
+		lastDecisionDetails: lastDecisionDetails,
+		decisions: decisionHistory.slice()
+	};
+
+	try {
+		data.compatibility = checkCompatibility();
+		data.runtimeSummary = getRuntimeSummary();
+	}
+	catch {
+		data.compatibility = [];
+		data.runtimeSummary = "无法读取运行状态";
+	}
+
+	try {
+		data.debugString = isInGame() ? getDebugString() : "";
+	}
+	catch {
+		data.debugString = "";
+	}
+
+	return data;
+}
+
+function clearDecisionHistory() {
+	decisionHistory = [];
+}
+
 //Input string to get an array of tiles (e.g. "123m456p789s1z")
 function getTilesFromString(inputString) {
 	var numbers = [];

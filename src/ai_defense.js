@@ -43,9 +43,33 @@ function getTileDangerForPlayer(tile, player, playerPerspective = 0) {
 		return 0;
 	}
 
+	var sujiSafetyLevel = getSujiSafetyLevel(player, tile);
+
 	//Honor tiles are often a preferred wait
 	if (tile.type == 3) {
 		danger *= 1.3;
+	}
+	else if (isPlayerRiichi(player) && sujiSafetyLevel >= 2) {
+		if (tile.index == 1 || tile.index == 9) {
+			danger *= 0.7; // Suji terminals are usually the safest non-genbutsu number tiles.
+		}
+		else if (tile.index == 2 || tile.index == 8) {
+			danger *= 0.85;
+		}
+		else if (tile.index == 3 || tile.index == 7) {
+			danger *= 0.95;
+		}
+		else {
+			danger *= 0.85;
+		}
+	}
+	else if (isPlayerRiichi(player) && sujiSafetyLevel == 0) {
+		if (tile.index >= 4 && tile.index <= 6) {
+			danger *= 1.15; // Non-suji middle tiles are the classic dangerous push against riichi.
+		}
+		else if (tile.index == 3 || tile.index == 7) {
+			danger *= 1.08;
+		}
 	}
 
 	//Is Dora? -> 10% more dangerous
@@ -58,7 +82,7 @@ function getTileDangerForPlayer(tile, player, playerPerspective = 0) {
 
 	//Is the player doing a flush of that type? -> More dangerous
 	var honitsuChance = isDoingHonitsu(player, tile.type);
-	var otherHonitsu = Math.max(isDoingHonitsu(player, 0) || isDoingHonitsu(player, 1) || isDoingHonitsu(player, 2));
+	var otherHonitsu = Math.max(isDoingHonitsu(player, 0), isDoingHonitsu(player, 1), isDoingHonitsu(player, 2));
 	if (honitsuChance > 0) {
 		danger *= 1 + honitsuChance;
 	}
@@ -82,7 +106,7 @@ function getTileDangerForPlayer(tile, player, playerPerspective = 0) {
 	//Does the player have no yaku yet? Yakuhai is likely -> Honor tiles are 10% more dangerous
 	if (!hasYaku(player)) {
 		if (tile.type == 3 && (tile.index > 4 || tile.index == getSeatWind(player) || tile.index == getRoundWind()) &&
-			getNumberOfTilesAvailable(tile.type, tile.index) > 2) {
+			getNumberOfTilesAvailable(tile.index, tile.type) > 2) {
 			danger *= 1.1;
 		}
 	}
@@ -110,6 +134,30 @@ function getTileDangerForPlayer(tile, player, playerPerspective = 0) {
 	return danger;
 }
 
+// Returns 0 for no suji, 1 for half suji, and 2 for full suji.
+function getSujiSafetyLevel(player, tile) {
+	if (tile.type == 3) {
+		return 0;
+	}
+
+	var lowerSuji = tile.index - 3 >= 1 && getLastTileInDiscard(player, { index: tile.index - 3, type: tile.type }) != null;
+	var upperSuji = tile.index + 3 <= 9 && getLastTileInDiscard(player, { index: tile.index + 3, type: tile.type }) != null;
+
+	if (tile.index <= 3) {
+		return upperSuji ? 2 : 0;
+	}
+	if (tile.index >= 7) {
+		return lowerSuji ? 2 : 0;
+	}
+	if (lowerSuji && upperSuji) {
+		return 2;
+	}
+	if (lowerSuji || upperSuji) {
+		return 1;
+	}
+	return 0;
+}
+
 //Percentage to deal in with a tile
 function getDealInChanceForTileAndPlayer(player, tile, playerPerspective = 0) {
 	var total = 0;
@@ -124,6 +172,9 @@ function getDealInChanceForTileAndPlayer(player, tile, playerPerspective = 0) {
 	}
 	if (playerPerspective != 0) {
 		total = getTotalPossibleWaits(player);
+	}
+	if (total <= 0) {
+		return 0;
 	}
 	return getTileDangerForPlayer(tile, player, playerPerspective) / total; //Then compare the given tile with it, this is our deal in percentage
 }
@@ -190,6 +241,9 @@ function getExpectedDoraInHand(player) {
 	var uradora = 0;
 	if (isPlayerRiichi(player)) { //amount of dora indicators multiplied by chance to hit uradora
 		uradora = getUradoraChance();
+	}
+	if (availableTiles.length == 0) {
+		return uradora;
 	}
 	return (((getNumberOfTilesInHand(player) + (discards[player].length / 2)) / availableTiles.length) * getNumberOfDoras(availableTiles)) + uradora;
 }

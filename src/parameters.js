@@ -32,6 +32,10 @@ var CHANGE_RECOMMEND_TILE_COLOR = true; // change recommended tile color in help
 var USE_EMOJI = true; //use EMOJI to show tile
 var LOG_AMOUNT = 3; //Amount of Messages to log for Tile Priorities
 var DEBUG_BUTTON = false; //Display a Debug Button in the GUI
+var THREE_PLAYER_PROFILE = true; //Use small strategy adjustments in 3 player games
+var THREE_PLAYER_SAFETY_FACTOR = 1.08; //3 player hands tend to be higher value, so defend slightly earlier
+var THREE_PLAYER_CALL_FACTOR = 1.10; //3 player rewards fast/value calls slightly more
+var THREE_PLAYER_RIICHI_FACTOR = 1.05; //3 player riichi pressure is slightly stronger
 
 
 
@@ -43,8 +47,8 @@ const AIMODE = { //ENUM of AI mode
 	HELP: 1,
 }
 const AIMODE_NAME = [ //Name of AI mode
-	"Auto",
-	"Help",
+	"自动",
+	"辅助",
 ]
 const STRATEGIES = { //ENUM of strategies
 	GENERAL: 'General',
@@ -73,6 +77,15 @@ var playerDiscardSafetyList = [[], [], [], []];
 var totalPossibleWaits = {};
 var timeSave = 0;
 var showingStrategy = false; //Current in own turn?
+var lastDecisionDetails = ""; //Detailed message for help mode.
+var decisionHistory = [];
+const DECISION_HISTORY_LIMIT = 20;
+const STRATEGY_NAME_CN = {
+	General: "常规",
+	Chiitoitsu: "七对子",
+	Fold: "弃和防守",
+	Thirteen_Orphans: "国士无双"
+}
 
 // Display
 var tileEmojiList = [
@@ -90,3 +103,95 @@ ROOM = ROOM == null ? 2 : ROOM
 
 var MODE = window.localStorage.getItem("alphajongAIMode")
 MODE = MODE == null ? AIMODE.AUTO : parseInt(MODE);
+
+const CONFIG_FIELDS = [
+	{ key: "PERFORMANCE_MODE", label: "计算精度", type: "number", min: 0, max: 4, step: 1, defaultValue: 3 },
+	{ key: "EFFICIENCY", label: "进攻效率", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
+	{ key: "SAFETY", label: "防守权重", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
+	{ key: "SAKIGIRI", label: "先切权重", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
+	{ key: "CALL_PON_CHI", label: "鸣牌倾向", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
+	{ key: "CALL_KAN", label: "杠牌倾向", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
+	{ key: "RIICHI", label: "立直倾向", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
+	{ key: "KEEP_SAFETILE", label: "保留安牌", type: "boolean", defaultValue: false },
+	{ key: "MARK_TSUMOGIRI", label: "标记摸切", type: "boolean", defaultValue: false },
+	{ key: "CHANGE_RECOMMEND_TILE_COLOR", label: "辅助高亮推荐牌", type: "boolean", defaultValue: true },
+	{ key: "THREE_PLAYER_PROFILE", label: "三麻策略微调", type: "boolean", defaultValue: true }
+];
+
+function getConfigValue(key) {
+	switch (key) {
+		case "PERFORMANCE_MODE": return PERFORMANCE_MODE;
+		case "EFFICIENCY": return EFFICIENCY;
+		case "SAFETY": return SAFETY;
+		case "SAKIGIRI": return SAKIGIRI;
+		case "CALL_PON_CHI": return CALL_PON_CHI;
+		case "CALL_KAN": return CALL_KAN;
+		case "RIICHI": return RIICHI;
+		case "KEEP_SAFETILE": return KEEP_SAFETILE;
+		case "MARK_TSUMOGIRI": return MARK_TSUMOGIRI;
+		case "CHANGE_RECOMMEND_TILE_COLOR": return CHANGE_RECOMMEND_TILE_COLOR;
+		case "THREE_PLAYER_PROFILE": return THREE_PLAYER_PROFILE;
+		default: return null;
+	}
+}
+
+function setConfigValue(key, value) {
+	switch (key) {
+		case "PERFORMANCE_MODE": PERFORMANCE_MODE = parseInt(value); break;
+		case "EFFICIENCY": EFFICIENCY = parseFloat(value); break;
+		case "SAFETY": SAFETY = parseFloat(value); break;
+		case "SAKIGIRI": SAKIGIRI = parseFloat(value); break;
+		case "CALL_PON_CHI": CALL_PON_CHI = parseFloat(value); break;
+		case "CALL_KAN": CALL_KAN = parseFloat(value); break;
+		case "RIICHI": RIICHI = parseFloat(value); break;
+		case "KEEP_SAFETILE": KEEP_SAFETILE = value === true || value == "true"; break;
+		case "MARK_TSUMOGIRI": MARK_TSUMOGIRI = value === true || value == "true"; break;
+		case "CHANGE_RECOMMEND_TILE_COLOR": CHANGE_RECOMMEND_TILE_COLOR = value === true || value == "true"; break;
+		case "THREE_PLAYER_PROFILE": THREE_PLAYER_PROFILE = value === true || value == "true"; break;
+	}
+}
+
+function loadStoredConfig() {
+	for (let field of CONFIG_FIELDS) {
+		var storedValue = window.localStorage.getItem("alphajongConfig_" + field.key);
+		if (storedValue != null) {
+			setConfigValue(field.key, storedValue);
+		}
+	}
+}
+
+function resetStoredConfig() {
+	for (let field of CONFIG_FIELDS) {
+		setConfigValue(field.key, field.defaultValue);
+		if (typeof window.localStorage.removeItem == 'function') {
+			window.localStorage.removeItem("alphajongConfig_" + field.key);
+		}
+	}
+}
+
+function isThreePlayerProfileActive() {
+	try {
+		return THREE_PLAYER_PROFILE && getNumberOfPlayers() == 3;
+	}
+	catch {
+		return false;
+	}
+}
+
+function getEffectiveSafety() {
+	return SAFETY * (isThreePlayerProfileActive() ? THREE_PLAYER_SAFETY_FACTOR : 1);
+}
+
+function getEffectiveCallPonChi() {
+	return CALL_PON_CHI * (isThreePlayerProfileActive() ? THREE_PLAYER_CALL_FACTOR : 1);
+}
+
+function getEffectiveCallKan() {
+	return CALL_KAN * (isThreePlayerProfileActive() ? THREE_PLAYER_CALL_FACTOR : 1);
+}
+
+function getEffectiveRiichi() {
+	return RIICHI * (isThreePlayerProfileActive() ? THREE_PLAYER_RIICHI_FACTOR : 1);
+}
+
+loadStoredConfig();

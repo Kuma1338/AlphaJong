@@ -36,6 +36,7 @@ async function callTriple(combinations, operation) {
 	log("Consider call on " + getTileName(getTileForCall()));
 
 	var handValue = getHandValues(ownHand);
+	var callFactor = getEffectiveCallPonChi();
 
 	if (!strategyAllowsCalls && (tilesLeft > 4 || handValue.shanten > 1)) { //No Calls allowed
 		log("Strategy allows no calls! Declined!");
@@ -62,6 +63,12 @@ async function callTriple(combinations, operation) {
 			bestDora = getNumberOfDoras(callTiles);
 			bestCombShanten = shanten;
 		}
+	}
+
+	if (comb < 0) {
+		log("No valid call combination found. Declined!");
+		declineCall(operation);
+		return false;
 	}
 
 	log("Best Combination: " + combinations[comb]);
@@ -122,7 +129,7 @@ async function callTriple(combinations, operation) {
 		return false;
 	}
 
-	if (isClosed && newHandValue.score.open < 1500 - (CALL_PON_CHI * 200) && newHandValue.shanten >= 2 + CALL_PON_CHI && seatWind != 1 &&// Hand is worthless and slow and not dealer. Should prevent cheap yakuhai or tanyao calls
+	if (isClosed && newHandValue.score.open < 1500 - (callFactor * 200) && newHandValue.shanten >= 2 + callFactor && seatWind != 1 &&// Hand is worthless and slow and not dealer. Should prevent cheap yakuhai or tanyao calls
 		!(newHonorPairs >= 1 && newPairs >= 2)) {
 		log("Hand is cheap and slow! Declined!");
 		declineCall(operation);
@@ -154,25 +161,25 @@ async function callTriple(combinations, operation) {
 		var isBadWait = (callTiles[0].index == callTiles[1].index || Math.abs(callTiles[0].index - callTiles[1].index) == 2 || // Pon or Kanchan
 			callTiles[0].index >= 8 && callTiles[1].index >= 8 || callTiles[0].index <= 2 && callTiles[1].index <= 2); //Penchan
 
-		if (handValue.shanten >= 5 - CALL_PON_CHI && seatWind == 1) { //Very slow hand & dealer? -> Go for a fast win
+		if (handValue.shanten >= 5 - callFactor && seatWind == 1) { //Very slow hand & dealer? -> Go for a fast win
 			log("Call accepted because of slow hand and dealer position!");
 		}
 		else if (!isClosed && newHandValue.score.open > handValue.score.open * 0.9) { //Hand is already open and it reduces shanten while not much value is lost 
 			log("Call accepted because hand is already open!");
 		}
-		else if (newHandValue.score.open >= 4500 - (CALL_PON_CHI * 500) &&
+		else if (newHandValue.score.open >= 4500 - (callFactor * 500) &&
 			newHandValue.score.open > handValue.score.closed * 0.7) { //High value hand? -> Go for a fast win
 			log("Call accepted because of high value hand!");
 		}
 		else if (newHandValue.score.open >= handValue.score.closed * 1.75 && //Call gives additional value to hand
-			((newHandValue.score.open >= (2000 - (CALL_PON_CHI * 200) - ((3 - newHandValue.shanten) * 200))) || //And either hand is not extremely cheap...
+			((newHandValue.score.open >= (2000 - (callFactor * 200) - ((3 - newHandValue.shanten) * 200))) || //And either hand is not extremely cheap...
 				newHonorPairs >= 1)) { //Or there are some honor pairs in hand (=can be called easily or act as safe discards)
 			log("Call accepted because it boosts the value of the hand!");
 		}
 		else if (newHandValue.score.open > handValue.score.open * 0.9 && //Call loses not much value
 			newHandValue.score.open > handValue.score.closed * 0.7 &&
-			((isBadWait && (newHandValue.score.open >= (1000 - (CALL_PON_CHI * 100) - ((3 - newHandValue.shanten) * 100)))) || // And it's a bad wait while the hand is not extremely cheap
-				(!isBadWait && (newHandValue.score.open >= (2000 - (CALL_PON_CHI * 200) - ((3 - newHandValue.shanten) * 200)))) || //Or it was a good wait and the hand is at least a bit valuable
+			((isBadWait && (newHandValue.score.open >= (1000 - (callFactor * 100) - ((3 - newHandValue.shanten) * 100)))) || // And it's a bad wait while the hand is not extremely cheap
+				(!isBadWait && (newHandValue.score.open >= (2000 - (callFactor * 200) - ((3 - newHandValue.shanten) * 200)))) || //Or it was a good wait and the hand is at least a bit valuable
 				newHonorPairs >= 2) && //Or multiple honor pairs
 			((newHandTriples.pairs.filter(t => isValueTile(t) && getNumberOfTilesAvailable(t.index, t.type) >= 1)).length >= 2 && (newPairs >= 2 || newHandValue.shanten > 1))) {//And would open hand anyway with honor call
 			log("Call accepted because it reduces shanten!");
@@ -187,7 +194,7 @@ async function callTriple(combinations, operation) {
 			((newHandValue.score.open / 3000) - 0.5) +
 			(((newHandValue.score.open / handValue.score.closed) * 0.75) - 0.75) +
 			((isBadWait / 2) - 0.25) >=
-			1 - (CALL_PON_CHI / 2)) { //The call is good in multiple aspects
+			1 - (callFactor / 2)) { //The call is good in multiple aspects
 			log("Call accepted because it's good in multiple aspects");
 		}
 		else { //Decline
@@ -225,13 +232,14 @@ function callAnkan(combination) {
 function callKan(operation, tileForCall) {
 	log("Consider Kan.");
 	var tiles = getHandValues(getHandWithCalls(ownHand));
+	var callKanFactor = getEffectiveCallKan();
 
 	var newTiles = getHandValues(getHandWithCalls(removeTilesFromTileArray(ownHand, [tileForCall]))); //Check if efficiency goes down without additional tile
 
 	if (isPlayerRiichi(0) ||
 		(strategyAllowsCalls &&
-			tiles.shanten <= (tilesLeft / (getWallSize() / 2)) + CALL_KAN &&
-			getCurrentDangerLevel() < 1000 + (CALL_KAN * 500) &&
+			tiles.shanten <= (tilesLeft / (getWallSize() / 2)) + callKanFactor &&
+			getCurrentDangerLevel() < 1000 + (callKanFactor * 500) &&
 			tiles.shanten >= newTiles.shanten &&
 			tiles.efficiency * 0.9 <= newTiles.efficiency)) {
 		makeCall(operation);
@@ -322,6 +330,8 @@ function discardFold(tiles) {
 				tile.danger <= foldThreshold * 2) {
 				log("Tile Priorities: ");
 				printTilePriority(tiles);
+				lastDecisionDetails = getTilePriorityDetails(tile, "防守弃牌");
+				recordDecision(lastDecisionDetails);
 				discardTile(tile.tile);
 				return tile.tile;
 			}
@@ -337,6 +347,8 @@ function discardFold(tiles) {
 	log("Fold Tile Priorities: ");
 	printTilePriority(tiles);
 
+	lastDecisionDetails = getTilePriorityDetails(tiles[0], "弃和防守");
+	recordDecision(lastDecisionDetails);
 	discardTile(tiles[0].tile);
 	return tiles[0].tile;
 }
@@ -657,9 +669,9 @@ function getHandValues(hand, discardedTile) {
 			if (winning && !tile2Furiten) { //If this tile combination wins in 2 turns: calculate shape etc.
 				thisShanten = -1 - baseShanten;
 				if (waitTiles.filter(t => isSameTile(t, tile2)).length == 0) {
-					var newShape = numberOfTiles2 * getWaitQuality(tile2) * ((numberOfTiles1) / availableTiles.length);
+					var newShape = numberOfTiles2 * getWaitQuality(tile2) * (numberOfTiles1 / Math.max(1, availableTiles.length));
 					if (tile2Data.duplicate) {
-						newShape += numberOfTiles1 * getWaitQuality(tile1) * ((numberOfTiles2) / availableTiles.length);
+						newShape += numberOfTiles1 * getWaitQuality(tile1) * (numberOfTiles2 / Math.max(1, availableTiles.length));
 					}
 					shape += newShape;
 				}
@@ -712,7 +724,7 @@ function getHandValues(hand, discardedTile) {
 		hand.pop();
 	}
 
-	var allCombinations = availableTiles.length * (availableTiles.length - 1);
+	var allCombinations = Math.max(1, availableTiles.length * (availableTiles.length - 1));
 	shanten /= allCombinations; //Divide by total amount of possible draw combinations
 
 	if (numberOfTotalCombinations > 0) {
@@ -788,7 +800,7 @@ function calculateTilePriority(efficiency, expectedScore, danger) {
 	var weightedEfficiency = Math.pow(Math.abs(efficiency), 0.3 + EFFICIENCY * placementFactor);
 	weightedEfficiency = efficiency < 0 ? -weightedEfficiency : weightedEfficiency;
 
-	score -= (danger * 2 * SAFETY);
+	score -= (danger * 2 * getEffectiveSafety());
 
 	if (weightedEfficiency < 0) { //Hotfix for negative efficiency (increasing shanten)
 		score = 50000 - score;
@@ -830,7 +842,7 @@ function chiitoitsuPriorities() {
 			var currentHand = [...handWithoutPairs];
 			currentHand.push(tile);
 			var numberOfTiles = getNumberOfNonFuritenTilesAvailable(tile.index, tile.type);
-			var chance = (numberOfTiles + (getWaitQuality(tile) / 10)) / availableTiles.length;
+			var chance = (numberOfTiles + (getWaitQuality(tile) / 10)) / Math.max(1, availableTiles.length);
 			var pairs2 = getPairsAsArray(currentHand);
 			if (pairs2.length > 0) { //If the tiles improves the hand: Calculate the expected values
 				shanten += ((6 - (pairsValue + (pairs2.length / 2))) - baseShanten) * chance;
@@ -991,6 +1003,7 @@ function getMissingTilesForThirteenOrphans(uniqueTerminalHonors) {
 
 //Discards the "best" tile
 async function discard() {
+	lastDecisionDetails = "";
 
 	var tiles = await getTilePriorities(ownHand);
 	tiles = sortOutUnsafeTiles(tiles);
@@ -1007,6 +1020,9 @@ async function discard() {
 	printTilePriority(tiles);
 
 	var tile = getDiscardTile(tiles);
+	var selectedTilePrio = tiles.find(t => isSameTile(t.tile, tile, true));
+	lastDecisionDetails = getTilePriorityDetails(selectedTilePrio, "弃牌");
+	recordDecision(lastDecisionDetails);
 
 	var riichi = false;
 	if (canRiichi()) {
@@ -1081,7 +1097,7 @@ function keepSafetile(tiles) {
 function getDiscardTile(tiles) {
 	var tile = tiles[0].tile;
 
-	if (tiles[0].valid && (tiles[0].yaku.open >= 1 || isClosed || tileLeft <= 4)) {
+	if (tiles[0].valid && (tiles[0].yaku.open >= 1 || isClosed || tilesLeft <= 4)) {
 		return tile;
 	}
 

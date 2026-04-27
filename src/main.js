@@ -28,14 +28,14 @@ if (!isDebug()) {
 function toggleRun() {
 	clearCrtStrategyMsg();
 	if (run) {
-		log("AlphaJong deactivated!");
+		log("AlphaJong 已暂停!");
 		run = false;
-		startButton.innerHTML = "Start Bot";
+		startButton.innerHTML = "启动";
 	}
 	else if (!run) {
-		log("AlphaJong activated!");
+		log("AlphaJong 已启动!");
 		run = true;
-		startButton.innerHTML = "Stop Bot";
+		startButton.innerHTML = "暂停";
 		main();
 	}
 }
@@ -48,28 +48,28 @@ function waitForMainLobbyLoad() {
 	}
 
 	if (!hasFinishedMainLobbyLoading()) { //Otherwise wait for Main Lobby to load and then search for game
-		log("Waiting for Main Lobby to load...");
-		showCrtActionMsg("Wait for Loading.");
+		log("等待大厅加载...");
+		showCrtActionMsg("等待加载。");
 		setTimeout(waitForMainLobbyLoad, 2000);
 		return;
 	}
-	log("Main Lobby loaded!");
+	log("大厅加载完成!");
 	refreshRoomSelection();
 	startGame();
 	setTimeout(main, 10000);
-	log("Main Loop started.");
+	log("主循环已启动。");
 }
 
 //Main Loop
 function main() {
 	if (!run) {
-		showCrtActionMsg("Bot is not running.");
+		showCrtActionMsg("脚本未运行。");
 		return;
 	}
 	if (!isInGame()) {
 		checkForEnd();
-		showCrtActionMsg("Waiting for Game to start.");
-		log("Game is not running, sleep 2 seconds.");
+		showCrtActionMsg("等待对局开始。");
+		log("对局未开始，等待 2 秒。");
 		errorCounter++;
 		if (errorCounter > 90 && AUTORUN) { //3 minutes no game found -> reload page
 			goToLobby();
@@ -96,7 +96,7 @@ function main() {
 			errorCounter = 0;
 		}
 		clearCrtStrategyMsg();
-		showCrtActionMsg("Waiting for own turn.");
+		showCrtActionMsg("等待自己操作。");
 		setTimeout(main, 500);
 
 		if (MODE === AIMODE.HELP) {
@@ -105,7 +105,7 @@ function main() {
 		return;
 	}
 
-	showCrtActionMsg("Calculating best move...");
+	showCrtActionMsg("正在计算最佳操作...");
 
 	setTimeout(mainOwnTurn, 200 + (Math.random() * 200));
 }
@@ -225,13 +225,13 @@ async function mainOwnTurn() {
 	log(" ");
 
 	if (MODE === AIMODE.AUTO) {
-		showCrtActionMsg("Own turn completed.");
+		showCrtActionMsg("本次操作完成。");
 	}
 
 	if ((getOverallTimeLeft() < 8 && getLastTurnTimeLeft() - getOverallTimeLeft() <= 0) || //Not much overall time left and last turn took longer than the 5 second increment
 		(getOverallTimeLeft() < 4 && getLastTurnTimeLeft() - getOverallTimeLeft() <= 1)) {
 		timeSave++;
-		log("Low performance! Activating time save mode level: " + timeSave);
+		log("性能较低，启用省时模式等级: " + timeSave);
 	}
 	if (getOverallTimeLeft() > 15) { //Much time left (new round)
 		timeSave = 0;
@@ -315,8 +315,8 @@ function setData(mainUpdate = true) {
 //Search for Game
 function startGame() {
 	if (!isInGame() && run && AUTORUN) {
-		log("Searching for Game in Room " + ROOM);
-		showCrtActionMsg("Searching for Game...");
+		log("正在房间 " + ROOM + " 匹配对局");
+		showCrtActionMsg("正在匹配对局...");
 		searchForGame();
 	}
 }

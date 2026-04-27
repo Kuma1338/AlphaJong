@@ -6,6 +6,81 @@
 
 该AI目前支持3麻和4麻两种模式。  
 
+[![Mahjong Soul](https://img.shields.io/badge/Mahjong%20Soul-Web%20Userscript-2f80ed)](https://game.maj-soul.com/)
+![Mode](https://img.shields.io/badge/Mode-3P%20%2F%204P-success)
+![Language](https://img.shields.io/badge/UI-%E4%B8%AD%E6%96%87%E5%8C%96-red)
+![Tests](https://img.shields.io/badge/Tests-80%2F80%20passed-brightgreen)
+
+## AlphaJong 增强版更新总览
+
+本分支在原项目基础上做了一轮面向“雀魂 Web 实战可用性”的增强：修复会影响自动打牌的关键问题，补齐三麻/四麻策略细节，加入中文用户界面、可视化调参、兼容性检查、非阻塞策略记录窗口以及一键导出诊断数据。
+
+### 这次主要做了什么
+
+| 模块 | 原项目状态 | 增强后 |
+|:---|:---|:---|
+| 稳定性 | 个别边界会触发异常或无效分支 | 修复开副露弃牌崩溃、役牌危险度、立直多宝牌指示牌、空牌墙、空鸣牌组合等问题 |
+| 雀魂 Web 适配 | 直接依赖雀魂内部对象，缺少可视化检查 | 新增“检查”按钮，显示对象兼容性、几人场、剩余牌数、可操作项和房间信息 |
+| 三麻/四麻 | 已有基础规则分支 | 保留原三麻规则，并加入三麻策略微调开关，三麻下略微调整防守、鸣牌、立直权重 |
+| 用户界面 | 主要是英文按钮和状态 | 用户层按钮、状态、策略名和操作提示中文化 |
+| 策略调参 | 需要改源码常量 | 新增“设置”面板，可在网页内调节进攻、防守、鸣牌、杠牌、立直等参数并持久保存 |
+| 决策复盘 | 需要看控制台日志 | 新增“记录”小窗口，展示最近 20 次策略决策，不阻塞游戏页面 |
+| 数据导出 | 无 | 支持导出策略记录和 BUG 诊断数据，方便复盘或反馈问题 |
+| 测试 | 原测试集 | 新增 Node 回归测试，覆盖已修复 BUG、三麻权重、决策记录和导出数据 |
+
+### 已修复的关键问题
+
+| 优先级 | 文件 | 问题 | 处理 |
+|:---|:---|:---|:---|
+| P1 | `src/ai_offense.js` | 开副露后特定弃牌路径引用不存在的 `tileLeft`，会导致自动出牌中断 | 改为正确的 `tilesLeft` 并加入回归测试 |
+| P2 | `src/ai_defense.js` | 役牌危险度调用 `getNumberOfTilesAvailable` 时参数顺序反了，导致役牌危险加成失效 | 修正为 `(index, type)` |
+| P2 | `src/utils.js` | 立直判断误用 `tilePrio.dora.length`，多宝牌指示牌分支永远不触发 | 改为全局 `dora.length` |
+| P2 | 多处 | 空牌墙、无可能听牌、空鸣牌组合等边界可能产生异常或无效数值 | 增加保护分支，避免 `Infinity`、`NaN` 和异常 |
+
+### 新增界面说明
+
+| 按钮 | 作用 |
+|:---|:---|
+| 启动 / 暂停 | 控制 AI 是否运行 |
+| 自动 / 辅助 | 自动模式会直接操作；辅助模式只给推荐，不自动操作 |
+| 检查 | 检查雀魂 Web 端内部对象是否仍兼容，并显示当前运行态 |
+| 设置 | 打开策略调参面板 |
+| 记录 | 打开非阻塞策略记录窗口，可刷新、导出、清空 |
+| 隐藏 | 隐藏脚本 UI |
+
+### 推荐给新手的参数
+
+| 参数 | 推荐值 | 说明 |
+|:---|:---|:---|
+| 计算精度 | `3` | 兼顾速度和质量 |
+| 进攻效率 | `1.0` | 保持默认牌效 |
+| 防守权重 | `1.1` | 对新手更稳，减少点炮 |
+| 鸣牌倾向 | `0.9` | 避免过度吃碰导致无役或低价值 |
+| 杠牌倾向 | `0.6` | 降低乱杠带来的风险 |
+| 立直倾向 | `1.0` | 保持标准立直策略 |
+| 保留安牌 | 开 | 给对手立直后的防守留余地 |
+| 三麻策略微调 | 开 | 三麻场自动启用更合适的微调权重 |
+
+### 当前验证结果
+
+```text
+Regression tests passed.
+
+Efficiency: 17/17 passed
+Defense: 10/10 passed
+Dora: 5/5 passed
+Yaku: 19/19 passed
+Strategy: 4/4 passed
+Waits: 6/6 passed
+Call: 7/7 passed
+Issue: 5/5 passed
+Example: 7/7 passed
+```
+
+### 仍需注意
+
+这个脚本依赖雀魂 Web 前端内部对象，例如 `view.DesktopMgr`、`app.NetAgent` 和 `mjcore.E_PlayOperation`。如果雀魂更新前端结构，脚本仍可能需要再次适配。遇到异常时可以点击“检查”和“记录 -> 导出BUG数据”，把导出的 JSON 用于定位问题。
+
 [Click here for the English readme.](https://github.com/Jimboom7/AlphaJong/blob/master/readme.md)  
 [日本語のリードミーはこちら.](https://github.com/Jimboom7/AlphaJong/blob/master/readme_jp.md)  
 

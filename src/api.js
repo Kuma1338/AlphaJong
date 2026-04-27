@@ -21,6 +21,58 @@ function preventAFK() {
 	//uiscript.UI_Hangup_Warn.Inst.locking
 }
 
+function checkCompatibility() {
+	var checks = [
+		{ name: "GameMgr", ok: typeof GameMgr != 'undefined' && GameMgr.Inst != null },
+		{ name: "view.DesktopMgr", ok: typeof view != 'undefined' && view.DesktopMgr != null && view.DesktopMgr.Inst != null },
+		{ name: "app.NetAgent", ok: typeof app != 'undefined' && app.NetAgent != null },
+		{ name: "mjcore.E_PlayOperation", ok: typeof mjcore != 'undefined' && mjcore.E_PlayOperation != null },
+		{ name: "uiscript", ok: typeof uiscript != 'undefined' },
+		{ name: "room config", ok: getRooms() != null }
+	];
+
+	if (typeof view != 'undefined' && view.DesktopMgr != null && view.DesktopMgr.Inst != null) {
+		checks.push({ name: "oplist", ok: typeof view.DesktopMgr.Inst.oplist != 'undefined' });
+		checks.push({ name: "players", ok: view.DesktopMgr.Inst.players != null && view.DesktopMgr.Inst.players.length > 0 });
+		checks.push({ name: "own hand", ok: view.DesktopMgr.Inst.players != null && view.DesktopMgr.Inst.players[0] != null && view.DesktopMgr.Inst.players[0].hand != null });
+		checks.push({ name: "discard API", ok: view.DesktopMgr.Inst.players != null && view.DesktopMgr.Inst.players[0] != null && typeof view.DesktopMgr.Inst.players[0].DoDiscardTile == 'function' });
+	}
+
+	return checks;
+}
+
+function getCompatibilitySummary() {
+	var checks = checkCompatibility();
+	var failed = checks.filter(check => !check.ok);
+	var runtimeSummary = getRuntimeSummary();
+	var message = "兼容性检查: " + (failed.length == 0 ? "正常" : "缺失 " + failed.map(check => check.name).join(", "));
+	if (runtimeSummary != "") {
+		message += " | " + runtimeSummary;
+	}
+	log(message);
+	for (let check of checks) {
+		log((check.ok ? "[正常] " : "[缺失] ") + check.name);
+	}
+	return message;
+}
+
+function getRuntimeSummary() {
+	try {
+		if (!isInGame()) {
+			return "当前不在对局中";
+		}
+
+		var operationCount = getOperationList() == null ? 0 : getOperationList().length;
+		return getNumberOfPlayers() + "人场" +
+			" | 剩余 " + getTilesLeft() + " 张" +
+			" | 可操作 " + operationCount + " 项" +
+			" | 房间 " + getCurrentRoom();
+	}
+	catch {
+		return "";
+	}
+}
+
 function hasFinishedMainLobbyLoading() {
 	if (typeof GameMgr == 'undefined') {
 		return false;
@@ -145,7 +197,7 @@ function makeCall(type) {
 		app.NetAgent.sendReq2MJ('FastTest', 'inputChiPengGang', { type: type, index: 0, timeuse: Math.random() * 2 + 1 });
 		view.DesktopMgr.Inst.WhenDoOperation();
 	} else {
-		showCrtStrategyMsg(`Accept: Call ${getCallNameByType(type)};`);
+		showCrtStrategyMsg(`接受: ${getCallNameByType(type)};`);
 	}
 }
 
@@ -154,7 +206,7 @@ function makeCallWithOption(type, option) {
 		app.NetAgent.sendReq2MJ('FastTest', 'inputChiPengGang', { type: type, index: option, timeuse: Math.random() * 2 + 1 });
 		view.DesktopMgr.Inst.WhenDoOperation();
 	} else {
-		showCrtStrategyMsg(`Accept ${option}: Call ${getCallNameByType(type)};`);
+		showCrtStrategyMsg(`接受 ${option}: ${getCallNameByType(type)};`);
 	}
 }
 
@@ -170,7 +222,7 @@ function declineCall(operation) {
 			log("Failed to decline the Call. Maybe someone else was faster?");
 		}
 	} else {
-		showCrtStrategyMsg(`Decline: Call ${getCallNameByType(operation)};`);
+		showCrtStrategyMsg(`拒绝: ${getCallNameByType(operation)};`);
 	}
 }
 
@@ -179,7 +231,7 @@ function sendRiichiCall(tile, moqie) {
 		app.NetAgent.sendReq2MJ('FastTest', 'inputOperation', { type: mjcore.E_PlayOperation.liqi, tile: tile, moqie: moqie, timeuse: Math.random() * 2 + 1 }); //Moqie: Throwing last drawn tile (Riichi -> false)
 	} else {
 		let tileName = getTileEmojiByName(tile);
-		showCrtStrategyMsg(`Riichi: ${tileName};`);
+		showCrtStrategyMsg(`立直: ${tileName};`);
 	}
 }
 
@@ -189,7 +241,7 @@ function sendKitaCall() {
 		app.NetAgent.sendReq2MJ('FastTest', 'inputOperation', { type: mjcore.E_PlayOperation.babei, moqie: moqie, timeuse: Math.random() * 2 + 1 });
 		view.DesktopMgr.Inst.WhenDoOperation();
 	} else {
-		showCrtStrategyMsg(`Accept: Kita;`);
+		showCrtStrategyMsg(`接受: 拔北;`);
 	}
 }
 
@@ -198,7 +250,7 @@ function sendAbortiveDrawCall() {
 		app.NetAgent.sendReq2MJ('FastTest', 'inputOperation', { type: mjcore.E_PlayOperation.jiuzhongjiupai, index: 0, timeuse: Math.random() * 2 + 1 });
 		view.DesktopMgr.Inst.WhenDoOperation();
 	} else {
-		showCrtStrategyMsg(`Accept: Kyuushu Kyuuhai;`);
+		showCrtStrategyMsg(`接受: 九种九牌;`);
 	}
 }
 
@@ -216,7 +268,7 @@ function callDiscard(tileNumber) {
 	} else {
 		let tileID = ownHand[tileNumber];
 		let tileName = getTileName(tileID, false);
-		showCrtStrategyMsg(`Discard: ${tileName};`);
+		showCrtStrategyMsg(lastDecisionDetails || `弃牌: ${tileName};`);
 		if (CHANGE_RECOMMEND_TILE_COLOR) {
 			view.DesktopMgr.Inst.mainrole.hand.forEach(
 				tile => tile.val.toString() == tileID ?
@@ -358,9 +410,6 @@ function getLastTurnTimeLeft() {
 
 // Extend some internal MJSoul functions with additional code
 function extendMJSoulFunctions() {
-	if (functionsExtended) {
-		return;
-	}
 	trackDiscardTiles();
 	functionsExtended = true;
 }
@@ -369,7 +418,11 @@ function extendMJSoulFunctions() {
 function trackDiscardTiles() {
 	for (var i = 1; i < getNumberOfPlayers(); i++) {
 		var player = getCorrectPlayerNumber(i);
-		view.DesktopMgr.Inst.players[player].container_qipai.AddQiPai = (function (_super) { // Extend the MJ-Soul Discard function
+		var discardContainer = view.DesktopMgr.Inst.players[player].container_qipai;
+		if (discardContainer == null || typeof discardContainer.AddQiPai != 'function' || discardContainer.AddQiPai.alphaJongTracked) {
+			continue;
+		}
+		var trackedAddQiPai = (function (_super) { // Extend the MJ-Soul Discard function
 			return function () {
 				if (arguments[1]) { // Contains true when Riichi
 					riichiTiles[seat2LocalPosition(this.player.seat)] = arguments[0]; // Track tile in riichiTiles Variable
@@ -384,6 +437,8 @@ function trackDiscardTiles() {
 				playerDiscardSafetyList[seat2LocalPosition(this.player.seat)].push(danger);
 				return _super.apply(this, arguments); // Call original function
 			};
-		})(view.DesktopMgr.Inst.players[player].container_qipai.AddQiPai);
+		})(discardContainer.AddQiPai);
+		trackedAddQiPai.alphaJongTracked = true;
+		discardContainer.AddQiPai = trackedAddQiPai;
 	}
 }

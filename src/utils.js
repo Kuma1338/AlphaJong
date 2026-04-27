@@ -717,7 +717,7 @@ function getFoldThreshold(tilePrio, hand) {
 
 	foldValue *= 2 - (hand.length / 14); // Less likely to fold when fewer tiles in hand (harder to defend)
 
-	foldValue /= SAFETY;
+	foldValue /= getEffectiveSafety();
 
 	foldValue = foldValue < 0 ? 0 : foldValue;
 
@@ -753,8 +753,11 @@ function shouldFold(tile, highestPrio = false) {
 //Decide whether to call Riichi
 //Based on: https://mahjong.guide/2018/01/28/mahjong-fundamentals-5-riichi/
 function shouldRiichi(tilePrio) {
-	var badWait = tilePrio.waits < 5 - RIICHI;
-	var lotsOfDoraIndicators = tilePrio.dora.length >= 3;
+	var riichiFactor = getEffectiveRiichi();
+	var badWait = tilePrio.waits < 5 - riichiFactor;
+	var goodWait = tilePrio.waits >= 6;
+	var lotsOfDoraIndicators = dora.length >= 3;
+	var riichiOpponents = getNumberOfRiichiOpponents();
 
 	//Chiitoitsu
 	if (strategy == STRATEGIES.CHIITOITSU) {
@@ -762,7 +765,7 @@ function shouldRiichi(tilePrio) {
 			log("Decline Riichi because of chiitoitsu wait that can be improved!");
 			return false;
 		}
-		badWait = tilePrio.waits < 3 - RIICHI;
+		badWait = tilePrio.waits < 3 - riichiFactor;
 	}
 
 	//Thirteen Orphans
@@ -772,7 +775,7 @@ function shouldRiichi(tilePrio) {
 	}
 
 	//Close to end of game
-	if (tilesLeft <= 7 - RIICHI) {
+	if (tilesLeft <= 7 - riichiFactor) {
 		log("Decline Riichi because close to end of game.");
 		return false;
 	}
@@ -795,26 +798,37 @@ function shouldRiichi(tilePrio) {
 		return false;
 	}
 
+	// First riichi with a good wait is a strong pressure play.
+	if (riichiOpponents == 0 && goodWait && tilesLeft > 8 && tilePrio.score.riichi >= 2600) {
+		log("Accept Riichi because of first tenpai with a good wait.");
+		return true;
+	}
+
 	// Not Dealer & bad Wait & Riichi is only yaku
-	if (seatWind != 1 && badWait && tilePrio.score.riichi < 4000 - (RIICHI * 1000) && !lotsOfDoraIndicators && tilePrio.shape > 0.4) {
+	if (seatWind != 1 && badWait && tilePrio.score.riichi < 4000 - (riichiFactor * 1000) && !lotsOfDoraIndicators && tilePrio.shape > 0.4) {
 		log("Decline Riichi because of worthless hand, bad waits and not dealer.");
 		return false;
 	}
 
 	// High Danger and hand not worth much or bad wait
-	if (tilePrio.score.riichi < (getCurrentDangerLevel() - (RIICHI * 1000)) * (1 + badWait)) {
+	if (tilePrio.score.riichi < (getCurrentDangerLevel() - (riichiFactor * 1000)) * (1 + badWait)) {
 		log("Decline Riichi because of worthless hand and high danger.");
 		return false;
 	}
 
+	if (riichiOpponents > 0 && badWait && tilePrio.waits < 4 && tilePrio.score.riichi < getCurrentDangerLevel() + 1000) {
+		log("Decline Riichi because chasing with a bad wait is too risky.");
+		return false;
+	}
+
 	// Hand already has enough yaku and high value (Around 6000+ depending on the wait)
-	if (tilePrio.yaku.closed >= 1 && tilePrio.score.closed / (seatWind == 1 ? 1.5 : 1) > 4000 + (RIICHI * 1000) + (tilePrio.waits * 500)) {
+	if (tilePrio.yaku.closed >= 1 && tilePrio.score.closed / (seatWind == 1 ? 1.5 : 1) > 4000 + (riichiFactor * 1000) + (tilePrio.waits * 500)) {
 		log("Decline Riichi because of high value hand with enough yaku.");
 		return false;
 	}
 
 	// Hand already has high value and no yaku
-	if (tilePrio.yaku.closed < 0.9 && tilePrio.score.riichi > 5000 - (RIICHI * 1000)) {
+	if (tilePrio.yaku.closed < 0.9 && tilePrio.score.riichi > 5000 - (riichiFactor * 1000)) {
 		log("Accept Riichi because of high value hand without yaku.");
 		return true;
 	}
@@ -836,6 +850,16 @@ function shouldRiichi(tilePrio) {
 	// Default: Just do it.
 	log("Accept Riichi by default.");
 	return true;
+}
+
+function getNumberOfRiichiOpponents() {
+	var riichiOpponents = 0;
+	for (var player = 1; player < getNumberOfPlayers(); player++) {
+		if (isPlayerRiichi(player)) {
+			riichiOpponents++;
+		}
+	}
+	return riichiOpponents;
 }
 
 //Negative number: Distance to second
@@ -892,17 +916,17 @@ function getWallSize() {
 
 function getCallNameByType(type) {
 	switch (type) {
-		case 1: return "discard";
-		case 2: return "chi";
-		case 3: return "pon";
-		case 4: return "kan(ankan)";
-		case 5: return "kan(daiminkan)";
-		case 6: return "kan(shouminkan)";
-		case 7: return "riichi";
-		case 8: return "tsumo";
-		case 9: return "ron";
-		case 10: return "kyuushu kyuuhai";
-		case 11: return "kita";
+		case 1: return "弃牌";
+		case 2: return "吃";
+		case 3: return "碰";
+		case 4: return "暗杠";
+		case 5: return "大明杠";
+		case 6: return "加杠";
+		case 7: return "立直";
+		case 8: return "自摸";
+		case 9: return "荣和";
+		case 10: return "九种九牌";
+		case 11: return "拔北";
 		default: return type;
 	}
 }
