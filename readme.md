@@ -1,79 +1,149 @@
-## About The Project
+# AlphaJong 中文增强版
 
-This project is a Mahjong AI for [Mahjong Soul](https://mahjongsoul.game.yo-star.com/) that runs directly in any browser. Everything was written from scratch in native JavaScript without any libraries.  
-The AI does not use machine learning, but conventional algorithms. Simply said it's simulating some turns and looking for the best move.  
-Compatible with both 3 and 4 player mode.  
-[日本語のリードミーはこちら.](./readme_jp.md)  
-[中文自述在这里.](./readme_cn.md)  
+[![Mahjong Soul](https://img.shields.io/badge/Mahjong%20Soul-Web%20Userscript-2f80ed)](https://game.maj-soul.com/)
+![Mode](https://img.shields.io/badge/Mode-3P%20%2F%204P-success)
+![UI](https://img.shields.io/badge/UI-%E4%B8%AD%E6%96%87%E5%8C%96-red)
+![Release](https://img.shields.io/badge/Release-v1.3.2--beta--cn-brightgreen)
 
-## Getting Started
+基于 [Jimboom7/AlphaJong](https://github.com/Jimboom7/AlphaJong) 的雀魂 Web 自动打牌脚本增强版。
 
-* Install a browser extension that lets you run userscripts, like [Tampermonkey](https://www.tampermonkey.net/).
-* Grab the latest [release of this project](https://github.com/Jimboom7/AlphaJong/releases) and install it in your browser extension. (For Tampermonkey you can enter the download url at utilities -> Install from URL).
-* Open [Mahjong Soul](https://mahjongsoul.game.yo-star.com/) (make sure you are logged in already).
-* Go into a game and click "Start Bot" in the GUI at the top.
-* You can check "Autostart" to let the bot automatically start new games.
-* Detailed logging is output to the browser console ([F12] in most browsers)
+这个仓库不是原项目的简单镜像，而是一个面向中文用户、雀魂 Web 实战测试、策略调参和问题复盘的增强版本。
 
-### How to avoid bans
+## 直接下载
 
-There is a high risk of getting banned when using this script without further preparation. Fortunately [the MajSoul Mod Plus project on GitHub](https://github.com/Avenshy/majsoul_mod_plus) is offering a way to avoid bans. They provide a "safe code" file which is the same as the official code of the game but the cheat detection is disabled. Here is how you can use it:  
-1. Install the [Header Editor](https://he.firefoxcn.net/en/) plugin.
-2. Open the plugin and go to the `Export and Import` tab.
-3. Fill in `https://cdn.jsdelivr.net/gh/Avenshy/majsoul_mod_plus/header%20editor.json` as Download Rule and press the Download button on the right.
-4. Pick `Suggested Group` and click save.
-5. **Make sure that Tampermonkey is turned off** and open the Mahjong Soul game webpage.
-6. Clear your browser cache (see image below). Press F12 to open the browser console and go to the `Application` tab. Choose `Storage` and tick the box `Cache storage`. Then click the button `Clear site data`.
-7. Refresh (F5) the webpage and check the browser console output. At the top it should display "CODE.JS替换成功！", which means the code was successfully replaced.
-8. You can now turn on Tampermonkey and use this bot without getting banned.
+Release: [v1.3.2-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.3.2-beta-cn)  
+文件: `AlphaJong_1.3.2_beta.user.js`
 
-![clear_cache](https://raw.githubusercontent.com/Jimboom7/AlphaJong/master/doc/img/clear_cache.png)
+源码包内也已经包含可直接安装的 userscript：
 
-**Note**: When the game updates to a new version and the safe code doesn't work anymore, first try cleaning the cache again (as seen in the image above). If that doesn't work the safe code needs to be updated:
-1. Check if the [safe_code.js file on MajSoul Mod Plus](https://github.com/Avenshy/majsoul_mod_plus) has been updated for the new version yet.
-2. If it has been updated click this link: [jsdelivr_purge_cache](https://purge.jsdelivr.net/gh/Avenshy/majsoul_mod_plus/safe_code.js) to refresh the code. If you see `"status": "finished"` it was successfull.
-3. Open Mahjong Soul, clear your browser cache and refresh the page.
+[build/AlphaJong_1.3.2_beta.user.js](./build/AlphaJong_1.3.2_beta.user.js)
 
-If you have problems with the above steps please try opening an issue on [MajSoul Mod Plus](https://github.com/Avenshy/majsoul_mod_plus).
+## 这个版本做了什么
 
-### GUI
-![GUI](./doc/img/gui.png)
-There is a very simple GUI to control the Bot.  
-* Left Button: Start or Stop the Bot.
-* ComboBox: AI mode, there are two AI modes.
-  * AUTO: which automatically helps the player to operate
-  * HELP: only gives hints and does not operate
-* Checkbox: Enable Autorun mode. The bot will automatically reload the site and search for a new game after the previous one is finished. The Room can be chosen in the ComboBox next to it.
-* Output Field: Simple Logging what the bot is currently doing or waiting for.
-* Right Button: Hide the GUI. You can re-show it by pressing + on the Numpad.
+- 修复关键 BUG
+- 中文化用户界面
+- 小型 `AJ` 悬浮插件 UI
+- 设置面板
+- 策略记录窗口
+- 导出策略记录 / BUG 数据
+- 雀魂 Web 兼容性检查
+- 三麻策略微调
+- 回归测试
+- 发布包内置可安装 `.user.js`
 
-### Parameters
-The default parameters are usually fine. If you want to modify the behaviour of the bot (e.g. more aggressive playstyle) you can change some constants at the top of the script:
+## 和原版相比
 
-* Performance Mode: Decides how accurate and fast the bot will play. 0 is the fastest mode with low accuracy, 4 is the slowest mode with high accuracy.
-* Defense Constants: Constants that modify the defensive playstyle.
-* Calls: Constants that modify how often the bot calls for tiles.
-* Hand Evaluation Constants: Constants that modify how the value of hands is calculated. Influences if the bot goes for fast or expensive hands.
-* Strategy Constants: See Comments
+| 功能 | 原版 | 增强版 |
+|:---|:---|:---|
+| 安装包 | 主要依赖 Release / 构建产物 | 仓库和 Release 都包含可直接安装的 `.user.js` |
+| 用户界面 | 顶部横向菜单栏 | 小型 `AJ` 方形悬浮插件，点击后展开 |
+| 语言 | 主要英文 | 用户层中文化 |
+| 策略调参 | 修改源码常量 | 网页内设置面板，自动保存 |
+| 决策复盘 | 主要看控制台日志 | 内置策略记录窗口 |
+| 数据导出 | 无 | 支持导出策略记录和 BUG 数据 |
+| 兼容性检查 | 无可视化入口 | 一键检查雀魂 Web 内部对象和运行态 |
+| 三麻支持 | 已有基础规则 | 保留基础规则，并加入三麻策略微调 |
+| 回归测试 | 原测试集 | 新增 Node 回归测试覆盖关键修复 |
 
-## Statistics
+## 安装方式
 
-![Stats](https://i.imgur.com/30p4yAN.png)
+1. 安装 [Tampermonkey](https://www.tampermonkey.net/?locale=zh)。
+2. 下载 Release 中的 `AlphaJong_1.3.2_beta.user.js`。
+3. 在 Tampermonkey 中导入或粘贴该脚本。
+4. 打开雀魂 Web 端。
+5. 进入对局后，点击页面中的 `AJ` 悬浮按钮展开面板。
 
-The bot is able to reach Master rank.
+## 功能说明
 
-![Yakuman](https://i.imgur.com/j6j2f2V.png)
+| 功能 | 说明 |
+|:---|:---|
+| 启动 / 暂停 | 控制脚本是否运行 |
+| 自动 / 辅助 | 自动模式直接操作，辅助模式只给推荐 |
+| 检查 | 检查雀魂 Web 端对象、几人场、剩余牌数、可操作项 |
+| 设置 | 调整进攻、防守、鸣牌、杠牌、立直等参数 |
+| 记录 | 查看最近 20 次策略决策 |
+| 导出策略记录 | 导出最近决策和当前参数 |
+| 导出 BUG 数据 | 导出兼容性、运行态、调试串和最近决策 |
 
-## Tests
+## 推荐参数
 
-The project contains a testclass with simple "Nani Kiru?" testcases.
+### 新手稳健配置
 
-## Known Problems
+| 参数 | 推荐值 |
+|:---|:---|
+| 计算精度 | `3` |
+| 进攻效率 | `1.0` |
+| 防守权重 | `1.1` |
+| 先切权重 | `1.0` |
+| 鸣牌倾向 | `0.9` |
+| 杠牌倾向 | `0.6` |
+| 立直倾向 | `1.0` |
+| 保留安牌 | 开 |
+| 三麻策略微调 | 开 |
 
-- While the game does not need focus (=you can use other programs while the bot is running), it's not possible to have it in the background. That means if the browser is minimized or you switch to another tab for a while you will get disconnected for AFK. Most modern browsers also check if the window is hidden behind other windows and will drastically reduce the performance then. This behavior can be turned off in the settings, if needed you can set `chrome://flags/#calculate-native-win-occlusion` to disabled (Chrome) or go to `about:config` in Firefox and set `widget.windows.window_occlusion_tracking.enabled` to false.
-   - When there is a disconnection the bot will try to solve it by reloading the page.
-- If the bot is not able to play fast enough try lowering the Performance Mode (see parameters) or use a different browser (Firefox seems to be fastest).
+### 少点炮配置
 
-## Disclaimer
+| 参数 | 推荐值 |
+|:---|:---|
+| 防守权重 | `1.2 - 1.4` |
+| 鸣牌倾向 | `0.7 - 0.9` |
+| 杠牌倾向 | `0.3 - 0.6` |
+| 保留安牌 | 开 |
 
-Bots are a violation of Mahjong Soul's Terms of Service. Using this bot is on your own risk and the creator is not responsible for your actions.
+### 更进攻配置
+
+| 参数 | 推荐值 |
+|:---|:---|
+| 进攻效率 | `1.1 - 1.3` |
+| 鸣牌倾向 | `1.0 - 1.2` |
+| 立直倾向 | `1.1` |
+| 防守权重 | `0.8 - 1.0` |
+
+## 测试结果
+
+```text
+python3 build.py
+node --check build/AlphaJong_1.3.2_beta.user.js
+node test/regression_tests.js
+```
+
+原项目完整测试集：
+
+```text
+Efficiency: 17/17 passed
+Defense: 10/10 passed
+Dora: 5/5 passed
+Yaku: 19/19 passed
+Strategy: 4/4 passed
+Waits: 6/6 passed
+Call: 7/7 passed
+Issue: 5/5 passed
+Example: 7/7 passed
+```
+
+## 详细更新
+
+完整更新说明见：
+
+[RELEASE_NOTES_CN.md](./RELEASE_NOTES_CN.md)
+
+## 已知风险
+
+本脚本依赖雀魂 Web 前端内部对象，例如：
+
+- `view.DesktopMgr`
+- `app.NetAgent`
+- `mjcore.E_PlayOperation`
+- `uiscript`
+
+如果雀魂更新前端结构，脚本可能需要重新适配。遇到问题时建议先使用：
+
+1. `检查`
+2. `记录`
+3. `导出BUG数据`
+
+## 致谢与许可证
+
+本项目基于 [Jimboom7/AlphaJong](https://github.com/Jimboom7/AlphaJong) 修改增强。感谢原作者的项目基础。
+
+原项目许可证为 GPL，本仓库继续保留相同许可证。详见 [LICENSE](./LICENSE)。
