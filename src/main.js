@@ -17,6 +17,7 @@ if (!isDebug()) {
 	if (AUTORUN) {
 		log("Autorun start");
 		run = true;
+		updateLauncherState();
 		setInterval(preventAFK, 30000);
 	}
 
@@ -31,11 +32,13 @@ function toggleRun() {
 		log("AlphaJong 已暂停!");
 		run = false;
 		startButton.innerHTML = "启动";
+		updateLauncherState();
 	}
 	else if (!run) {
 		log("AlphaJong 已启动!");
 		run = true;
 		startButton.innerHTML = "暂停";
+		updateLauncherState();
 		main();
 	}
 }

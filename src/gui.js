@@ -5,6 +5,7 @@
 
 var guiDiv = document.createElement("div");
 var guiSpan = document.createElement("span");
+var launcherButton = document.createElement("button");
 var startButton = document.createElement("button");
 var aimodeCombobox = document.createElement("select");
 var autorunCheckbox = document.createElement("input");
@@ -25,34 +26,118 @@ function initGui() {
 		return;
 	}
 
-	guiDiv.style.position = "absolute";
+	guiDiv.style.position = "fixed";
 	guiDiv.style.zIndex = "100001"; //On top of the game
-	guiDiv.style.left = "0px";
-	guiDiv.style.top = "0px";
-	guiDiv.style.width = "100%";
-	guiDiv.style.textAlign = "center";
-	guiDiv.style.fontSize = "20px";
+	guiDiv.style.left = "12px";
+	guiDiv.style.top = "64px";
+	guiDiv.style.width = "320px";
+	guiDiv.style.maxWidth = "calc(100% - 24px)";
+	guiDiv.style.textAlign = "left";
+	guiDiv.style.fontSize = "13px";
+	guiDiv.style.fontFamily = "Arial, sans-serif";
 
-	guiSpan.style.backgroundColor = "rgba(255,255,255,0.5)";
-	guiSpan.style.padding = "5px";
+	launcherButton.innerHTML = "AJ";
+	launcherButton.title = "AlphaJong";
+	launcherButton.style.width = "46px";
+	launcherButton.style.height = "46px";
+	launcherButton.style.borderRadius = "8px";
+	launcherButton.style.border = "1px solid rgba(0,0,0,0.35)";
+	launcherButton.style.backgroundColor = "rgba(255,255,255,0.9)";
+	launcherButton.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
+	launcherButton.style.fontWeight = "bold";
+	launcherButton.style.fontSize = "15px";
+	launcherButton.style.cursor = "pointer";
+	launcherButton.onclick = function () {
+		toggleGui();
+	};
+	guiDiv.appendChild(launcherButton);
+
+	guiSpan.style.display = "none";
+	guiSpan.style.marginTop = "6px";
+	guiSpan.style.backgroundColor = "rgba(255,255,255,0.92)";
+	guiSpan.style.border = "1px solid rgba(0,0,0,0.32)";
+	guiSpan.style.borderRadius = "8px";
+	guiSpan.style.boxShadow = "0 2px 10px rgba(0,0,0,0.25)";
+	guiSpan.style.padding = "8px";
+	guiSpan.style.width = "100%";
+	guiSpan.style.boxSizing = "border-box";
+
+	var header = document.createElement("div");
+	header.style.display = "flex";
+	header.style.alignItems = "center";
+	header.style.justifyContent = "space-between";
+	header.style.marginBottom = "8px";
+	var title = document.createElement("span");
+	title.innerHTML = "AlphaJong";
+	title.style.fontWeight = "bold";
+	header.appendChild(title);
+	var compactButton = document.createElement("button");
+	compactButton.innerHTML = "收起";
+	compactButton.onclick = function () {
+		collapseGui();
+	};
+	header.appendChild(compactButton);
+	guiSpan.appendChild(header);
+
+	var controlRow = document.createElement("div");
+	controlRow.style.display = "grid";
+	controlRow.style.gridTemplateColumns = "repeat(3, 1fr)";
+	controlRow.style.gap = "6px";
 
 	startButton.innerHTML = "启动";
 	if (window.localStorage.getItem("alphajongAutorun") == "true") {
 		startButton.innerHTML = "暂停";
 	}
-	startButton.style.marginRight = "15px";
 	startButton.onclick = function () {
 		toggleRun();
 	};
-	guiSpan.appendChild(startButton);
+	controlRow.appendChild(startButton);
 
 	refreshAIMode();
-	aimodeCombobox.style.marginRight = "15px";
 	aimodeCombobox.onchange = function() {
 		aiModeChange();
 	};
-	guiSpan.appendChild(aimodeCombobox);
+	controlRow.appendChild(aimodeCombobox);
 
+	compatibilityButton.innerHTML = "检查";
+	compatibilityButton.onclick = function () {
+		clearCrtStrategyMsg();
+		showCrtActionMsg(getCompatibilitySummary());
+	};
+	controlRow.appendChild(compatibilityButton);
+
+	settingsButton.innerHTML = "设置";
+	settingsButton.onclick = function () {
+		toggleSettings();
+	};
+	controlRow.appendChild(settingsButton);
+
+	historyButton.innerHTML = "记录";
+	historyButton.onclick = function () {
+		toggleHistoryPanel();
+	};
+	controlRow.appendChild(historyButton);
+
+	hideButton.innerHTML = "收起";
+	hideButton.onclick = function () {
+		collapseGui();
+	};
+	controlRow.appendChild(hideButton);
+
+	if (DEBUG_BUTTON) {
+		debugButton.innerHTML = "调试";
+		debugButton.onclick = function () {
+			showDebugString();
+		};
+		controlRow.appendChild(debugButton);
+	}
+	guiSpan.appendChild(controlRow);
+
+	var autorunRow = document.createElement("label");
+	autorunRow.style.display = "flex";
+	autorunRow.style.alignItems = "center";
+	autorunRow.style.gap = "6px";
+	autorunRow.style.marginTop = "8px";
 	autorunCheckbox.type = "checkbox";
 	autorunCheckbox.id = "autorun";
 	autorunCheckbox.onclick = function () {
@@ -61,16 +146,14 @@ function initGui() {
 	if (window.localStorage.getItem("alphajongAutorun") == "true") {
 		autorunCheckbox.checked = true;
 	}
-	guiSpan.appendChild(autorunCheckbox);
-	var checkboxLabel = document.createElement("label");
-	checkboxLabel.htmlFor = "autorun";
-	checkboxLabel.appendChild(document.createTextNode('自动开局'));
-	checkboxLabel.style.marginRight = "15px";
-	guiSpan.appendChild(checkboxLabel);
+	autorunRow.appendChild(autorunCheckbox);
+	autorunRow.appendChild(document.createTextNode("自动开局"));
+	guiSpan.appendChild(autorunRow);
 
 	refreshRoomSelection();
 
-	roomCombobox.style.marginRight = "15px";
+	roomCombobox.style.width = "100%";
+	roomCombobox.style.marginTop = "6px";
 	roomCombobox.onchange = function () {
 		roomChange();
 	};
@@ -81,49 +164,16 @@ function initGui() {
 	guiSpan.appendChild(roomCombobox);
 
 	currentActionOutput.readOnly = "true";
-	currentActionOutput.size = "72";
-	currentActionOutput.style.marginRight = "15px";
+	currentActionOutput.size = "28";
+	currentActionOutput.style.width = "100%";
+	currentActionOutput.style.boxSizing = "border-box";
+	currentActionOutput.style.marginTop = "6px";
+	currentActionOutput.style.fontSize = "12px";
 	showCrtActionMsg("脚本未运行。");
 	if (window.localStorage.getItem("alphajongAutorun") == "true") {
 		showCrtActionMsg("脚本已启动。");
 	}
 	guiSpan.appendChild(currentActionOutput);
-
-	compatibilityButton.innerHTML = "检查";
-	compatibilityButton.style.marginRight = "15px";
-	compatibilityButton.onclick = function () {
-		clearCrtStrategyMsg();
-		showCrtActionMsg(getCompatibilitySummary());
-	};
-	guiSpan.appendChild(compatibilityButton);
-
-	settingsButton.innerHTML = "设置";
-	settingsButton.style.marginRight = "15px";
-	settingsButton.onclick = function () {
-		toggleSettings();
-	};
-	guiSpan.appendChild(settingsButton);
-
-	historyButton.innerHTML = "记录";
-	historyButton.style.marginRight = "15px";
-	historyButton.onclick = function () {
-		toggleHistoryPanel();
-	};
-	guiSpan.appendChild(historyButton);
-
-	debugButton.innerHTML = "调试";
-	debugButton.onclick = function () {
-		showDebugString();
-	};
-	if (DEBUG_BUTTON) {
-		guiSpan.appendChild(debugButton);
-	}
-
-	hideButton.innerHTML = "隐藏";
-	hideButton.onclick = function () {
-		toggleGui();
-	};
-	guiSpan.appendChild(hideButton);
 
 	guiDiv.appendChild(guiSpan);
 	buildSettingsPanel();
@@ -131,17 +181,35 @@ function initGui() {
 	buildHistoryPanel();
 	document.body.appendChild(historyDiv);
 	document.body.appendChild(guiDiv);
-	toggleGui();
+	collapseGui();
+	updateLauncherState();
 }
 
 function toggleGui() {
-	if (guiDiv.style.display == "block") {
-		guiDiv.style.display = "none";
-		historyDiv.style.display = "none";
+	if (guiSpan.style.display == "block") {
+		collapseGui();
 	}
 	else {
-		guiDiv.style.display = "block";
+		expandGui();
 	}
+}
+
+function expandGui() {
+	guiSpan.style.display = "block";
+	launcherButton.style.display = "none";
+}
+
+function collapseGui() {
+	guiSpan.style.display = "none";
+	launcherButton.style.display = "block";
+	settingsDiv.style.display = "none";
+	historyDiv.style.display = "none";
+}
+
+function updateLauncherState() {
+	launcherButton.style.borderColor = run ? "rgba(31,130,76,0.9)" : "rgba(0,0,0,0.35)";
+	launcherButton.style.color = run ? "#136f3a" : "#222";
+	launcherButton.title = run ? "AlphaJong 正在运行" : "AlphaJong 已暂停";
 }
 
 function showDebugString() {
@@ -161,18 +229,18 @@ function toggleSettings() {
 function buildSettingsPanel() {
 	settingsDiv.innerHTML = "";
 	settingsDiv.style.display = "none";
-	settingsDiv.style.margin = "6px auto 0 auto";
+	settingsDiv.style.margin = "6px 0 0 0";
 	settingsDiv.style.padding = "6px";
-	settingsDiv.style.width = "780px";
-	settingsDiv.style.maxWidth = "96%";
+	settingsDiv.style.width = "100%";
 	settingsDiv.style.backgroundColor = "rgba(255,255,255,0.75)";
 	settingsDiv.style.fontSize = "14px";
 	settingsDiv.style.textAlign = "left";
+	settingsDiv.style.boxSizing = "border-box";
 
 	var grid = document.createElement("div");
 	grid.style.display = "grid";
-	grid.style.gridTemplateColumns = "repeat(2, minmax(260px, 1fr))";
-	grid.style.gap = "6px 16px";
+	grid.style.gridTemplateColumns = "1fr";
+	grid.style.gap = "6px";
 
 	for (let field of CONFIG_FIELDS) {
 		grid.appendChild(createConfigControl(field));
@@ -248,7 +316,7 @@ function buildHistoryPanel() {
 	historyDiv.style.position = "fixed";
 	historyDiv.style.zIndex = "100002";
 	historyDiv.style.right = "10px";
-	historyDiv.style.top = "54px";
+	historyDiv.style.top = "64px";
 	historyDiv.style.width = "520px";
 	historyDiv.style.maxWidth = "94%";
 	historyDiv.style.backgroundColor = "rgba(255,255,255,0.92)";
@@ -356,7 +424,7 @@ function roomChange() {
 }
 
 function hideButtonClick() {
-	guiDiv.style.display = "none";
+	collapseGui();
 }
 
 function autorunCheckboxClick() {
@@ -402,6 +470,7 @@ function refreshRoomSelection() {
 function showCrtActionMsg(msg) {
 	if (!showingStrategy) {
 		currentActionOutput.value =  msg;
+		currentActionOutput.title = msg;
 	}
 }
 
@@ -409,6 +478,7 @@ function showCrtActionMsg(msg) {
 function showCrtStrategyMsg(msg) {
 	showingStrategy = true;
 	currentActionOutput.value = msg;
+	currentActionOutput.title = msg;
 }
 
 function clearCrtStrategyMsg() {
