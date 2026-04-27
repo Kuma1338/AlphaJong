@@ -31,6 +31,30 @@ function loadContext() {
 	return ctx;
 }
 
+function loadApiContext() {
+	const ctx = {
+		window: {
+			localStorage: {
+				getItem() { return null; },
+				setItem() {},
+				removeItem() {}
+			}
+		},
+		document: { body: { innerHTML: "" } },
+		console,
+		setTimeout() {},
+		DEBUG: true
+	};
+	vm.createContext(ctx);
+
+	[
+		"src/parameters.js",
+		"src/api.js"
+	].forEach(file => vm.runInContext(fs.readFileSync(file, "utf8"), ctx, { filename: file }));
+
+	return ctx;
+}
+
 function runInContext(ctx, source) {
 	return vm.runInContext(source, ctx);
 }
@@ -232,6 +256,26 @@ function testExportDataAndClearDecisionHistory() {
 	assert.strictEqual(result, true);
 }
 
+function testEventMatchFindsAndClicksLayaButton() {
+	const ctx = loadApiContext();
+	const result = runInContext(ctx, `
+		var clicked = false;
+		log = function () {};
+		showCrtActionMsg = function () {};
+		var button = { clickHandler: { run: function () { clicked = true; } }, _children: [] };
+		button._children.push({ text: "匹配對局", parent: button });
+		Laya = {
+			Event: { CLICK: "click" },
+			stage: {
+				_children: [button]
+			}
+		};
+		searchForEventGame() && clicked;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
 async function main() {
 	testOpenHandDiscardUsesTilesLeft();
 	testYakuhaiDangerUsesTileIndexTypeOrder();
@@ -245,6 +289,7 @@ async function main() {
 	testThreePlayerProfileAdjustsEffectiveWeights();
 	testDecisionHistoryTrimsAndFormats();
 	testExportDataAndClearDecisionHistory();
+	testEventMatchFindsAndClicksLayaButton();
 	console.log("Regression tests passed.");
 }
 

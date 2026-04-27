@@ -51,6 +51,7 @@ var THREE_PLAYER_PROFILE = true; //Use small strategy adjustments in 3 player ga
 var THREE_PLAYER_SAFETY_FACTOR = 1.08; //3 player hands tend to be higher value, so defend slightly earlier
 var THREE_PLAYER_CALL_FACTOR = 1.10; //3 player rewards fast/value calls slightly more
 var THREE_PLAYER_RIICHI_FACTOR = 1.05; //3 player riichi pressure is slightly stronger
+var EVENT_AUTORUN = false; //Automatically click event match buttons when waiting outside a match
 
 
 
@@ -94,6 +95,7 @@ var timeSave = 0;
 var showingStrategy = false; //Current in own turn?
 var lastDecisionDetails = ""; //Detailed message for help mode.
 var decisionHistory = [];
+var lastEventMatchTime = 0;
 const DECISION_HISTORY_LIMIT = 20;
 const STRATEGY_NAME_CN = {
 	General: "常规",
@@ -130,7 +132,8 @@ const CONFIG_FIELDS = [
 	{ key: "KEEP_SAFETILE", label: "保留安牌", type: "boolean", defaultValue: false },
 	{ key: "MARK_TSUMOGIRI", label: "标记摸切", type: "boolean", defaultValue: false },
 	{ key: "CHANGE_RECOMMEND_TILE_COLOR", label: "辅助高亮推荐牌", type: "boolean", defaultValue: true },
-	{ key: "THREE_PLAYER_PROFILE", label: "三麻策略微调", type: "boolean", defaultValue: true }
+	{ key: "THREE_PLAYER_PROFILE", label: "三麻策略微调", type: "boolean", defaultValue: true },
+	{ key: "EVENT_AUTORUN", label: "活动自动匹配", type: "boolean", defaultValue: false }
 ];
 
 function getConfigValue(key) {
@@ -146,6 +149,7 @@ function getConfigValue(key) {
 		case "MARK_TSUMOGIRI": return MARK_TSUMOGIRI;
 		case "CHANGE_RECOMMEND_TILE_COLOR": return CHANGE_RECOMMEND_TILE_COLOR;
 		case "THREE_PLAYER_PROFILE": return THREE_PLAYER_PROFILE;
+		case "EVENT_AUTORUN": return EVENT_AUTORUN;
 		default: return null;
 	}
 }
@@ -163,6 +167,7 @@ function setConfigValue(key, value) {
 		case "MARK_TSUMOGIRI": MARK_TSUMOGIRI = value === true || value == "true"; break;
 		case "CHANGE_RECOMMEND_TILE_COLOR": CHANGE_RECOMMEND_TILE_COLOR = value === true || value == "true"; break;
 		case "THREE_PLAYER_PROFILE": THREE_PLAYER_PROFILE = value === true || value == "true"; break;
+		case "EVENT_AUTORUN": EVENT_AUTORUN = value === true || value == "true"; break;
 	}
 }
 
@@ -228,11 +233,20 @@ var currentActionOutput = document.createElement("input");
 var compatibilityButton = document.createElement("button");
 var settingsButton = document.createElement("button");
 var historyButton = document.createElement("button");
+var eventMatchButton = document.createElement("button");
 var debugButton = document.createElement("button");
 var hideButton = document.createElement("button");
 var settingsDiv = document.createElement("div");
 var historyDiv = document.createElement("div");
 var historyText = document.createElement("textarea");
+var guiDrag = {
+	dragging: false,
+	moved: false,
+	startX: 0,
+	startY: 0,
+	left: 0,
+	top: 0
+};
 
 function initGui() {
 	if (getRooms() == null) { // Wait for minimal loading to be done
@@ -242,8 +256,8 @@ function initGui() {
 
 	guiDiv.style.position = "fixed";
 	guiDiv.style.zIndex = "100001"; //On top of the game
-	guiDiv.style.left = "12px";
-	guiDiv.style.top = "64px";
+	guiDiv.style.left = getStoredGuiPosition("left", 14) + "px";
+	guiDiv.style.top = getStoredGuiPosition("top", 140) + "px";
 	guiDiv.style.width = "320px";
 	guiDiv.style.maxWidth = "calc(100% - 24px)";
 	guiDiv.style.textAlign = "left";
@@ -260,8 +274,14 @@ function initGui() {
 	launcherButton.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
 	launcherButton.style.fontWeight = "bold";
 	launcherButton.style.fontSize = "15px";
-	launcherButton.style.cursor = "pointer";
+	launcherButton.style.cursor = "move";
+	launcherButton.onmousedown = startGuiDrag;
+	launcherButton.ontouchstart = startGuiDrag;
 	launcherButton.onclick = function () {
+		if (guiDrag.moved) {
+			guiDrag.moved = false;
+			return;
+		}
 		toggleGui();
 	};
 	guiDiv.appendChild(launcherButton);
@@ -281,8 +301,11 @@ function initGui() {
 	header.style.alignItems = "center";
 	header.style.justifyContent = "space-between";
 	header.style.marginBottom = "8px";
+	header.style.cursor = "move";
+	header.onmousedown = startGuiDrag;
+	header.ontouchstart = startGuiDrag;
 	var title = document.createElement("span");
-	title.innerHTML = "AlphaJong";
+	title.innerHTML = "AlphaJong · 拖动移动";
 	title.style.fontWeight = "bold";
 	header.appendChild(title);
 	var compactButton = document.createElement("button");
@@ -331,6 +354,13 @@ function initGui() {
 		toggleHistoryPanel();
 	};
 	controlRow.appendChild(historyButton);
+
+	eventMatchButton.innerHTML = "活动";
+	eventMatchButton.title = "尝试点击当前活动页的匹配对局按钮";
+	eventMatchButton.onclick = function () {
+		searchForEventGame();
+	};
+	controlRow.appendChild(eventMatchButton);
 
 	hideButton.innerHTML = "收起";
 	hideButton.onclick = function () {
@@ -395,8 +425,83 @@ function initGui() {
 	buildHistoryPanel();
 	document.body.appendChild(historyDiv);
 	document.body.appendChild(guiDiv);
+	clampGuiPosition();
 	collapseGui();
 	updateLauncherState();
+}
+
+function getStoredGuiPosition(axis, fallback) {
+	var value = parseInt(window.localStorage.getItem("alphajongGui" + axis));
+	return isNaN(value) ? fallback : value;
+}
+
+function getPointerPosition(event) {
+	var pointer = event.touches && event.touches.length > 0 ? event.touches[0] : event;
+	return { x: pointer.clientX, y: pointer.clientY };
+}
+
+function startGuiDrag(event) {
+	if (event.button != null && event.button !== 0) {
+		return;
+	}
+	var pointer = getPointerPosition(event);
+	guiDrag.dragging = true;
+	guiDrag.moved = false;
+	guiDrag.startX = pointer.x;
+	guiDrag.startY = pointer.y;
+	guiDrag.left = parseInt(guiDiv.style.left) || 0;
+	guiDrag.top = parseInt(guiDiv.style.top) || 0;
+	document.addEventListener("mousemove", moveGuiDrag);
+	document.addEventListener("mouseup", endGuiDrag);
+	document.addEventListener("touchmove", moveGuiDrag, { passive: false });
+	document.addEventListener("touchend", endGuiDrag);
+	event.stopPropagation();
+}
+
+function moveGuiDrag(event) {
+	if (!guiDrag.dragging) {
+		return;
+	}
+	var pointer = getPointerPosition(event);
+	var deltaX = pointer.x - guiDrag.startX;
+	var deltaY = pointer.y - guiDrag.startY;
+	if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+		guiDrag.moved = true;
+	}
+	guiDiv.style.left = (guiDrag.left + deltaX) + "px";
+	guiDiv.style.top = (guiDrag.top + deltaY) + "px";
+	clampGuiPosition();
+	event.preventDefault();
+	event.stopPropagation();
+}
+
+function endGuiDrag(event) {
+	if (!guiDrag.dragging) {
+		return;
+	}
+	guiDrag.dragging = false;
+	document.removeEventListener("mousemove", moveGuiDrag);
+	document.removeEventListener("mouseup", endGuiDrag);
+	document.removeEventListener("touchmove", moveGuiDrag);
+	document.removeEventListener("touchend", endGuiDrag);
+	saveGuiPosition();
+	if (event != null) {
+		event.stopPropagation();
+	}
+}
+
+function clampGuiPosition() {
+	var maxLeft = Math.max(0, window.innerWidth - Math.min(guiDiv.offsetWidth || 320, window.innerWidth));
+	var maxTop = Math.max(0, window.innerHeight - (launcherButton.offsetHeight || 46));
+	var left = Math.min(Math.max(parseInt(guiDiv.style.left) || 0, 0), maxLeft);
+	var top = Math.min(Math.max(parseInt(guiDiv.style.top) || 0, 0), maxTop);
+	guiDiv.style.left = left + "px";
+	guiDiv.style.top = top + "px";
+}
+
+function saveGuiPosition() {
+	window.localStorage.setItem("alphajongGuileft", parseInt(guiDiv.style.left) || 0);
+	window.localStorage.setItem("alphajongGuitop", parseInt(guiDiv.style.top) || 0);
 }
 
 function toggleGui() {
@@ -788,6 +893,102 @@ function searchForGame() {
 
 	// Direct way to search for a game, without UI:
 	// app.NetAgent.sendReq2Lobby('Lobby', 'startUnifiedMatch', {match_sid: 1 + ":" + ROOM, client_version_string: GameMgr.Inst.getClientVersion()});
+}
+
+function searchForEventGame() {
+	var now = Date.now();
+	if (now - lastEventMatchTime < 3000) {
+		return false;
+	}
+	lastEventMatchTime = now;
+
+	var button = findLayaNodeByText(["匹配对局", "匹配對局", "开始匹配", "開始匹配"]);
+	if (button == null) {
+		log("未找到活动匹配按钮。请先进入强夺之战活动页面。");
+		showCrtActionMsg("未找到活动匹配按钮。");
+		return false;
+	}
+
+	if (triggerLayaClick(button)) {
+		log("已尝试点击活动匹配按钮。");
+		showCrtActionMsg("已点击活动匹配。");
+		return true;
+	}
+
+	log("找到活动匹配按钮，但点击失败。");
+	showCrtActionMsg("活动匹配点击失败。");
+	return false;
+}
+
+function findLayaNodeByText(textList) {
+	if (typeof Laya == 'undefined' || Laya.stage == null) {
+		return null;
+	}
+	return findLayaNodeByTextRecursive(Laya.stage, textList);
+}
+
+function findLayaNodeByTextRecursive(node, textList) {
+	if (node == null) {
+		return null;
+	}
+
+	var nodeText = getLayaNodeText(node);
+	if (nodeText != "") {
+		for (let text of textList) {
+			if (nodeText.indexOf(text) >= 0) {
+				return node;
+			}
+		}
+	}
+
+	var children = node._children || node._childs || [];
+	for (let child of children) {
+		var found = findLayaNodeByTextRecursive(child, textList);
+		if (found != null) {
+			return found;
+		}
+	}
+	return null;
+}
+
+function getLayaNodeText(node) {
+	var values = [node.text, node._text, node.label, node._label];
+	for (let value of values) {
+		if (typeof value == 'string' && value.length > 0) {
+			return value;
+		}
+	}
+	return "";
+}
+
+function triggerLayaClick(node) {
+	var current = node;
+	for (var i = 0; i < 6 && current != null; i++) {
+		try {
+			if (current.clickHandler != null && typeof current.clickHandler.run == 'function') {
+				current.clickHandler.run();
+				return true;
+			}
+		}
+		catch {
+		}
+		current = current.parent;
+	}
+
+	current = node;
+	for (var j = 0; j < 6 && current != null; j++) {
+		try {
+			if (typeof Laya != 'undefined' && Laya.Event != null && typeof current.event == 'function' &&
+				(current.mouseEnabled || current.buttonMode || current.hitArea != null)) {
+				current.event(Laya.Event.CLICK);
+				return true;
+			}
+		}
+		catch {
+		}
+		current = current.parent;
+	}
+	return false;
 }
 
 function getOperationList() {
@@ -4609,6 +4810,9 @@ function main() {
 	if (!isInGame()) {
 		checkForEnd();
 		showCrtActionMsg("等待对局开始。");
+		if (EVENT_AUTORUN) {
+			startGame();
+		}
 		log("对局未开始，等待 2 秒。");
 		errorCounter++;
 		if (errorCounter > 90 && AUTORUN) { //3 minutes no game found -> reload page
@@ -4854,6 +5058,13 @@ function setData(mainUpdate = true) {
 
 //Search for Game
 function startGame() {
+	if (!isInGame() && run && EVENT_AUTORUN) {
+		log("正在尝试活动匹配。");
+		showCrtActionMsg("正在活动匹配...");
+		if (searchForEventGame()) {
+			return;
+		}
+	}
 	if (!isInGame() && run && AUTORUN) {
 		log("正在房间 " + ROOM + " 匹配对局");
 		showCrtActionMsg("正在匹配对局...");
@@ -4863,7 +5074,7 @@ function startGame() {
 
 //Check if End Screen is shown
 function checkForEnd() {
-	if (isEndscreenShown() && AUTORUN) {
+	if (isEndscreenShown() && (AUTORUN || EVENT_AUTORUN)) {
 		run = false;
 		setTimeout(goToLobby, 25000);
 	}

@@ -14,11 +14,20 @@ var currentActionOutput = document.createElement("input");
 var compatibilityButton = document.createElement("button");
 var settingsButton = document.createElement("button");
 var historyButton = document.createElement("button");
+var eventMatchButton = document.createElement("button");
 var debugButton = document.createElement("button");
 var hideButton = document.createElement("button");
 var settingsDiv = document.createElement("div");
 var historyDiv = document.createElement("div");
 var historyText = document.createElement("textarea");
+var guiDrag = {
+	dragging: false,
+	moved: false,
+	startX: 0,
+	startY: 0,
+	left: 0,
+	top: 0
+};
 
 function initGui() {
 	if (getRooms() == null) { // Wait for minimal loading to be done
@@ -28,8 +37,8 @@ function initGui() {
 
 	guiDiv.style.position = "fixed";
 	guiDiv.style.zIndex = "100001"; //On top of the game
-	guiDiv.style.left = "12px";
-	guiDiv.style.top = "64px";
+	guiDiv.style.left = getStoredGuiPosition("left", 14) + "px";
+	guiDiv.style.top = getStoredGuiPosition("top", 140) + "px";
 	guiDiv.style.width = "320px";
 	guiDiv.style.maxWidth = "calc(100% - 24px)";
 	guiDiv.style.textAlign = "left";
@@ -46,8 +55,14 @@ function initGui() {
 	launcherButton.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
 	launcherButton.style.fontWeight = "bold";
 	launcherButton.style.fontSize = "15px";
-	launcherButton.style.cursor = "pointer";
+	launcherButton.style.cursor = "move";
+	launcherButton.onmousedown = startGuiDrag;
+	launcherButton.ontouchstart = startGuiDrag;
 	launcherButton.onclick = function () {
+		if (guiDrag.moved) {
+			guiDrag.moved = false;
+			return;
+		}
 		toggleGui();
 	};
 	guiDiv.appendChild(launcherButton);
@@ -67,8 +82,11 @@ function initGui() {
 	header.style.alignItems = "center";
 	header.style.justifyContent = "space-between";
 	header.style.marginBottom = "8px";
+	header.style.cursor = "move";
+	header.onmousedown = startGuiDrag;
+	header.ontouchstart = startGuiDrag;
 	var title = document.createElement("span");
-	title.innerHTML = "AlphaJong";
+	title.innerHTML = "AlphaJong · 拖动移动";
 	title.style.fontWeight = "bold";
 	header.appendChild(title);
 	var compactButton = document.createElement("button");
@@ -117,6 +135,13 @@ function initGui() {
 		toggleHistoryPanel();
 	};
 	controlRow.appendChild(historyButton);
+
+	eventMatchButton.innerHTML = "活动";
+	eventMatchButton.title = "尝试点击当前活动页的匹配对局按钮";
+	eventMatchButton.onclick = function () {
+		searchForEventGame();
+	};
+	controlRow.appendChild(eventMatchButton);
 
 	hideButton.innerHTML = "收起";
 	hideButton.onclick = function () {
@@ -181,8 +206,83 @@ function initGui() {
 	buildHistoryPanel();
 	document.body.appendChild(historyDiv);
 	document.body.appendChild(guiDiv);
+	clampGuiPosition();
 	collapseGui();
 	updateLauncherState();
+}
+
+function getStoredGuiPosition(axis, fallback) {
+	var value = parseInt(window.localStorage.getItem("alphajongGui" + axis));
+	return isNaN(value) ? fallback : value;
+}
+
+function getPointerPosition(event) {
+	var pointer = event.touches && event.touches.length > 0 ? event.touches[0] : event;
+	return { x: pointer.clientX, y: pointer.clientY };
+}
+
+function startGuiDrag(event) {
+	if (event.button != null && event.button !== 0) {
+		return;
+	}
+	var pointer = getPointerPosition(event);
+	guiDrag.dragging = true;
+	guiDrag.moved = false;
+	guiDrag.startX = pointer.x;
+	guiDrag.startY = pointer.y;
+	guiDrag.left = parseInt(guiDiv.style.left) || 0;
+	guiDrag.top = parseInt(guiDiv.style.top) || 0;
+	document.addEventListener("mousemove", moveGuiDrag);
+	document.addEventListener("mouseup", endGuiDrag);
+	document.addEventListener("touchmove", moveGuiDrag, { passive: false });
+	document.addEventListener("touchend", endGuiDrag);
+	event.stopPropagation();
+}
+
+function moveGuiDrag(event) {
+	if (!guiDrag.dragging) {
+		return;
+	}
+	var pointer = getPointerPosition(event);
+	var deltaX = pointer.x - guiDrag.startX;
+	var deltaY = pointer.y - guiDrag.startY;
+	if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+		guiDrag.moved = true;
+	}
+	guiDiv.style.left = (guiDrag.left + deltaX) + "px";
+	guiDiv.style.top = (guiDrag.top + deltaY) + "px";
+	clampGuiPosition();
+	event.preventDefault();
+	event.stopPropagation();
+}
+
+function endGuiDrag(event) {
+	if (!guiDrag.dragging) {
+		return;
+	}
+	guiDrag.dragging = false;
+	document.removeEventListener("mousemove", moveGuiDrag);
+	document.removeEventListener("mouseup", endGuiDrag);
+	document.removeEventListener("touchmove", moveGuiDrag);
+	document.removeEventListener("touchend", endGuiDrag);
+	saveGuiPosition();
+	if (event != null) {
+		event.stopPropagation();
+	}
+}
+
+function clampGuiPosition() {
+	var maxLeft = Math.max(0, window.innerWidth - Math.min(guiDiv.offsetWidth || 320, window.innerWidth));
+	var maxTop = Math.max(0, window.innerHeight - (launcherButton.offsetHeight || 46));
+	var left = Math.min(Math.max(parseInt(guiDiv.style.left) || 0, 0), maxLeft);
+	var top = Math.min(Math.max(parseInt(guiDiv.style.top) || 0, 0), maxTop);
+	guiDiv.style.left = left + "px";
+	guiDiv.style.top = top + "px";
+}
+
+function saveGuiPosition() {
+	window.localStorage.setItem("alphajongGuileft", parseInt(guiDiv.style.left) || 0);
+	window.localStorage.setItem("alphajongGuitop", parseInt(guiDiv.style.top) || 0);
 }
 
 function toggleGui() {
