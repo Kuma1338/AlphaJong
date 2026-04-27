@@ -28,6 +28,16 @@
 | 数据导出 | 无 | 支持导出策略记录和 BUG 诊断数据，方便复盘或反馈问题 |
 | 测试 | 原测试集 | 新增 Node 回归测试，覆盖已修复 BUG、三麻权重、决策记录和导出数据 |
 
+详细更新内容见：[AlphaJong 增强版更新说明](./RELEASE_NOTES_CN.md)。
+
+### 直接安装脚本
+
+本分支已经把构建好的 userscript 纳入软件包：
+
+- [build/AlphaJong_1.3.2_beta.user.js](./build/AlphaJong_1.3.2_beta.user.js)
+
+如果你下载的是 GitHub 源码压缩包，可以直接使用上面的文件导入 Tampermonkey，不需要自己运行 `build.py`。
+
 ### 已修复的关键问题
 
 | 优先级 | 文件 | 问题 | 处理 |

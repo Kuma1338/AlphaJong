@@ -1,3 +1,5 @@
-build
+build/*
+!build/
+!build/*.user.js
 .scannerwork/
 .DS_Store
