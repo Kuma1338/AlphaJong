@@ -10,7 +10,7 @@
 
 | 文件 | 用途 |
 |:---|:---|
-| `build/AlphaJong_1.3.2_beta.user.js` | 可直接安装到 Tampermonkey 的完整 userscript |
+| `build/AlphaJong_1.3.3-beta-cn.user.js` | 可直接安装到 Tampermonkey 的完整 userscript |
 | `src/*.js` | 源码模块 |
 | `test/regression_tests.js` | 新增 Node 回归测试 |
 | `readme_cn.md` | 中文使用说明和增强版概览 |
@@ -19,7 +19,7 @@
 ## 安装方式
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/?locale=zh)。
-2. 打开 `build/AlphaJong_1.3.2_beta.user.js`。
+2. 打开 `build/AlphaJong_1.3.3-beta-cn.user.js`。
 3. 复制或通过 Tampermonkey 导入该 userscript。
 4. 打开雀魂 Web 端，进入对局后点击小型 `AJ` 悬浮按钮展开 AlphaJong 面板。
 
@@ -124,17 +124,7 @@
 - 状态栏不再占满顶部，长状态文本可以通过鼠标悬停查看完整内容。
 - 按小键盘 `+` 或 `A` 仍可展开 / 收起。
 
-### 7. 强夺之战活动匹配
-
-新增 `活动` 按钮和 `活动自动匹配` 设置：
-
-- 在强夺之战等活动页面，点击 `活动` 会尝试寻找并点击“匹配对局 / 匹配對局 / 开始匹配 / 開始匹配”按钮。
-- 开启 `活动自动匹配` 后，脚本在非对局状态会定期尝试活动匹配。
-- 成功进入牌局后，出牌仍使用 AlphaJong 原有自动打牌逻辑。
-
-该功能通过雀魂 Web 的 Laya 场景文本查找按钮，不写死屏幕坐标；如果活动 UI 文案变化，可能需要再次适配。
-
-### 8. 非阻塞策略记录窗口
+### 7. 非阻塞策略记录窗口
 
 新增 `记录` 小窗口，取代会卡住网页的 `alert()` 弹窗。
 
@@ -149,7 +139,7 @@
 
 记录窗口不会阻塞雀魂页面刷新和动画。
 
-### 9. 导出策略记录和 BUG 数据
+### 8. 导出策略记录和 BUG 数据
 
 #### 导出策略记录
 
@@ -171,7 +161,7 @@
 
 导出使用临时 `Blob URL`，下载后会释放，避免长期占用内存。
 
-### 10. 内存和稳定性优化
+### 9. 内存和稳定性优化
 
 - 决策记录限制为最近 20 条，避免无限增长。
 - 导出数据时复制记录数组，避免导出对象和运行态互相牵连。
@@ -217,7 +207,7 @@
 
 ```text
 python3 build.py
-node --check build/AlphaJong_1.3.2_beta.user.js
+node --check build/AlphaJong_1.3.3-beta-cn.user.js
 node test/regression_tests.js
 ```
 

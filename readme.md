@@ -3,7 +3,7 @@
 [![Mahjong Soul](https://img.shields.io/badge/Mahjong%20Soul-Web%20Userscript-2f80ed)](https://game.maj-soul.com/)
 ![Mode](https://img.shields.io/badge/Mode-3P%20%2F%204P-success)
 ![UI](https://img.shields.io/badge/UI-%E4%B8%AD%E6%96%87%E5%8C%96-red)
-![Release](https://img.shields.io/badge/Release-v1.3.2--beta--cn-brightgreen)
+![Release](https://img.shields.io/badge/Release-v1.3.3--beta--cn-brightgreen)
 
 基于 [Jimboom7/AlphaJong](https://github.com/Jimboom7/AlphaJong) 的雀魂 Web 自动打牌脚本增强版。
 
@@ -11,12 +11,12 @@
 
 ## 直接下载
 
-Release: [v1.3.2-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.3.2-beta-cn)  
-文件: `AlphaJong_1.3.2_beta.user.js`
+Release: [v1.3.3-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.3.3-beta-cn)  
+文件: `AlphaJong_1.3.3-beta-cn.user.js`
 
 源码包内也已经包含可直接安装的 userscript：
 
-[build/AlphaJong_1.3.2_beta.user.js](./build/AlphaJong_1.3.2_beta.user.js)
+[build/AlphaJong_1.3.3-beta-cn.user.js](./build/AlphaJong_1.3.3-beta-cn.user.js)
 
 ## 这个版本做了什么
 
@@ -27,7 +27,6 @@ Release: [v1.3.2-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.
 - 设置面板
 - 策略记录窗口
 - 导出策略记录 / BUG 数据
-- 强夺之战活动匹配入口
 - 雀魂 Web 兼容性检查
 - 三麻策略微调
 - 回归测试
@@ -51,7 +50,7 @@ Release: [v1.3.2-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.
 ## 安装方式
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/?locale=zh)。
-2. 下载 Release 中的 `AlphaJong_1.3.2_beta.user.js`。
+2. 下载 Release 中的 `AlphaJong_1.3.3-beta-cn.user.js`。
 3. 在 Tampermonkey 中导入或粘贴该脚本。
 4. 打开雀魂 Web 端。
 5. 进入对局后，点击页面中的 `AJ` 悬浮按钮展开面板。
@@ -65,7 +64,6 @@ Release: [v1.3.2-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.
 | 检查 | 检查雀魂 Web 端对象、几人场、剩余牌数、可操作项 |
 | 设置 | 调整进攻、防守、鸣牌、杠牌、立直等参数 |
 | 记录 | 查看最近 20 次策略决策 |
-| 活动 | 尝试点击强夺之战等活动页面的“匹配对局”按钮 |
 | 导出策略记录 | 导出最近决策和当前参数 |
 | 导出 BUG 数据 | 导出兼容性、运行态、调试串和最近决策 |
 
@@ -84,7 +82,6 @@ Release: [v1.3.2-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.
 | 立直倾向 | `1.0` |
 | 保留安牌 | 开 |
 | 三麻策略微调 | 开 |
-| 活动自动匹配 | 需要刷活动时再开 |
 
 ### 少点炮配置
 
@@ -108,7 +105,7 @@ Release: [v1.3.2-beta-cn](https://github.com/Kuma1338/AlphaJong/releases/tag/v1.
 
 ```text
 python3 build.py
-node --check build/AlphaJong_1.3.2_beta.user.js
+node --check build/AlphaJong_1.3.3-beta-cn.user.js
 node test/regression_tests.js
 ```
 

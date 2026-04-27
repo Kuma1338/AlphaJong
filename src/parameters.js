@@ -36,7 +36,6 @@ var THREE_PLAYER_PROFILE = true; //Use small strategy adjustments in 3 player ga
 var THREE_PLAYER_SAFETY_FACTOR = 1.08; //3 player hands tend to be higher value, so defend slightly earlier
 var THREE_PLAYER_CALL_FACTOR = 1.10; //3 player rewards fast/value calls slightly more
 var THREE_PLAYER_RIICHI_FACTOR = 1.05; //3 player riichi pressure is slightly stronger
-var EVENT_AUTORUN = false; //Automatically click event match buttons when waiting outside a match
 
 
 
@@ -80,7 +79,6 @@ var timeSave = 0;
 var showingStrategy = false; //Current in own turn?
 var lastDecisionDetails = ""; //Detailed message for help mode.
 var decisionHistory = [];
-var lastEventMatchTime = 0;
 const DECISION_HISTORY_LIMIT = 20;
 const STRATEGY_NAME_CN = {
 	General: "常规",
@@ -117,8 +115,7 @@ const CONFIG_FIELDS = [
 	{ key: "KEEP_SAFETILE", label: "保留安牌", type: "boolean", defaultValue: false },
 	{ key: "MARK_TSUMOGIRI", label: "标记摸切", type: "boolean", defaultValue: false },
 	{ key: "CHANGE_RECOMMEND_TILE_COLOR", label: "辅助高亮推荐牌", type: "boolean", defaultValue: true },
-	{ key: "THREE_PLAYER_PROFILE", label: "三麻策略微调", type: "boolean", defaultValue: true },
-	{ key: "EVENT_AUTORUN", label: "活动自动匹配", type: "boolean", defaultValue: false }
+	{ key: "THREE_PLAYER_PROFILE", label: "三麻策略微调", type: "boolean", defaultValue: true }
 ];
 
 function getConfigValue(key) {
@@ -134,7 +131,6 @@ function getConfigValue(key) {
 		case "MARK_TSUMOGIRI": return MARK_TSUMOGIRI;
 		case "CHANGE_RECOMMEND_TILE_COLOR": return CHANGE_RECOMMEND_TILE_COLOR;
 		case "THREE_PLAYER_PROFILE": return THREE_PLAYER_PROFILE;
-		case "EVENT_AUTORUN": return EVENT_AUTORUN;
 		default: return null;
 	}
 }
@@ -152,7 +148,6 @@ function setConfigValue(key, value) {
 		case "MARK_TSUMOGIRI": MARK_TSUMOGIRI = value === true || value == "true"; break;
 		case "CHANGE_RECOMMEND_TILE_COLOR": CHANGE_RECOMMEND_TILE_COLOR = value === true || value == "true"; break;
 		case "THREE_PLAYER_PROFILE": THREE_PLAYER_PROFILE = value === true || value == "true"; break;
-		case "EVENT_AUTORUN": EVENT_AUTORUN = value === true || value == "true"; break;
 	}
 }
 

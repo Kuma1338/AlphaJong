@@ -14,7 +14,6 @@ var currentActionOutput = document.createElement("input");
 var compatibilityButton = document.createElement("button");
 var settingsButton = document.createElement("button");
 var historyButton = document.createElement("button");
-var eventMatchButton = document.createElement("button");
 var debugButton = document.createElement("button");
 var hideButton = document.createElement("button");
 var settingsDiv = document.createElement("div");
@@ -135,13 +134,6 @@ function initGui() {
 		toggleHistoryPanel();
 	};
 	controlRow.appendChild(historyButton);
-
-	eventMatchButton.innerHTML = "活动";
-	eventMatchButton.title = "尝试点击当前活动页的匹配对局按钮";
-	eventMatchButton.onclick = function () {
-		searchForEventGame();
-	};
-	controlRow.appendChild(eventMatchButton);
 
 	hideButton.innerHTML = "收起";
 	hideButton.onclick = function () {

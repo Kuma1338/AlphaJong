@@ -72,9 +72,6 @@ function main() {
 	if (!isInGame()) {
 		checkForEnd();
 		showCrtActionMsg("等待对局开始。");
-		if (EVENT_AUTORUN) {
-			startGame();
-		}
 		log("对局未开始，等待 2 秒。");
 		errorCounter++;
 		if (errorCounter > 90 && AUTORUN) { //3 minutes no game found -> reload page
@@ -320,13 +317,6 @@ function setData(mainUpdate = true) {
 
 //Search for Game
 function startGame() {
-	if (!isInGame() && run && EVENT_AUTORUN) {
-		log("正在尝试活动匹配。");
-		showCrtActionMsg("正在活动匹配...");
-		if (searchForEventGame()) {
-			return;
-		}
-	}
 	if (!isInGame() && run && AUTORUN) {
 		log("正在房间 " + ROOM + " 匹配对局");
 		showCrtActionMsg("正在匹配对局...");
@@ -336,7 +326,7 @@ function startGame() {
 
 //Check if End Screen is shown
 function checkForEnd() {
-	if (isEndscreenShown() && (AUTORUN || EVENT_AUTORUN)) {
+	if (isEndscreenShown() && AUTORUN) {
 		run = false;
 		setTimeout(goToLobby, 25000);
 	}
