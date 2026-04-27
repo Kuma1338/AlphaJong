@@ -327,8 +327,12 @@ function startGame() {
 //Check if End Screen is shown
 function checkForEnd() {
 	if (isEndscreenShown() && AUTORUN) {
+		recordMatchResultIfNeeded();
 		run = false;
 		setTimeout(goToLobby, 25000);
+	}
+	else if (isEndscreenShown()) {
+		recordMatchResultIfNeeded();
 	}
 }
 

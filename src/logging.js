@@ -5,11 +5,43 @@
 
 //Print string to HTML or console
 function log(t) {
+	recordStrategyLog("日志", t);
 	if (isDebug()) {
 		document.body.innerHTML += t + "<br>";
 	}
 	else {
 		console.log(t);
+	}
+}
+
+function recordStrategyLog(type, detail, extra = null) {
+	if (typeof strategyLog == 'undefined') {
+		return;
+	}
+
+	var entry = {
+		time: new Date().toISOString(),
+		type: type,
+		detail: String(detail)
+	};
+
+	try {
+		entry.mode = getNumberOfPlayers() + "人";
+		entry.tilesLeft = tilesLeft;
+		entry.strategy = getLocalizedStrategyName(strategy);
+		entry.placement = getOwnPlacement();
+		entry.scores = getPlayerScoresSnapshot();
+	}
+	catch {
+	}
+
+	if (extra != null) {
+		entry.extra = extra;
+	}
+
+	strategyLog.unshift(entry);
+	if (strategyLog.length > STRATEGY_LOG_LIMIT) {
+		strategyLog.pop();
 	}
 }
 
@@ -97,10 +129,12 @@ function recordDecision(detail) {
 
 	decisionHistory.unshift({
 		time: new Date().toLocaleTimeString(),
+		isoTime: new Date().toISOString(),
 		mode: mode,
 		detail: detail,
 		debugString: debugString
 	});
+	recordStrategyLog("决策", detail, { debugString: debugString });
 
 	if (decisionHistory.length > DECISION_HISTORY_LIMIT) {
 		decisionHistory.pop();
@@ -108,14 +142,26 @@ function recordDecision(detail) {
 }
 
 function getDecisionHistoryText() {
-	if (decisionHistory.length == 0) {
-		return "暂无决策记录。";
+	var text = "";
+	if (matchHistory.length > 0) {
+		text += "最近对局结果:\n";
+		text += matchHistory.slice(0, 5).map(function (entry, index) {
+			return (index + 1) + ". [" + new Date(entry.endedAt).toLocaleString() + "] " +
+				entry.mode + " 第" + entry.ownRank + "名 / " + entry.ownScore + "点";
+		}).join("\n");
+		text += "\n\n";
 	}
 
-	return decisionHistory.map(function (entry, index) {
+	if (decisionHistory.length == 0) {
+		return text + "暂无决策记录。";
+	}
+
+	text += "最近策略决策:\n";
+	text += decisionHistory.map(function (entry, index) {
 		var debugLine = entry.debugString == "" ? "" : "\n调试: " + entry.debugString;
 		return (index + 1) + ". [" + entry.time + "][" + entry.mode + "] " + entry.detail + debugLine;
 	}).join("\n\n");
+	return text;
 }
 
 function getConfigSnapshot() {
@@ -127,6 +173,7 @@ function getConfigSnapshot() {
 	config.EFFECTIVE_CALL_PON_CHI = getEffectiveCallPonChi();
 	config.EFFECTIVE_CALL_KAN = getEffectiveCallKan();
 	config.EFFECTIVE_RIICHI = getEffectiveRiichi();
+	config.EFFECTIVE_EFFICIENCY = getEffectiveEfficiency();
 	return config;
 }
 
@@ -135,7 +182,9 @@ function getDecisionHistoryExportData() {
 		exportedAt: new Date().toISOString(),
 		version: typeof GM_info != 'undefined' && GM_info.script ? GM_info.script.version : "unknown",
 		config: getConfigSnapshot(),
-		decisions: decisionHistory.slice()
+		decisions: decisionHistory.slice(),
+		matchHistory: matchHistory.slice(),
+		strategyLog: strategyLog.slice()
 	};
 }
 
@@ -145,7 +194,9 @@ function getBugReportExportData() {
 		version: typeof GM_info != 'undefined' && GM_info.script ? GM_info.script.version : "unknown",
 		config: getConfigSnapshot(),
 		lastDecisionDetails: lastDecisionDetails,
-		decisions: decisionHistory.slice()
+		decisions: decisionHistory.slice(),
+		matchHistory: matchHistory.slice(),
+		strategyLog: strategyLog.slice()
 	};
 
 	try {
@@ -170,6 +221,158 @@ function getBugReportExportData() {
 function clearDecisionHistory() {
 	decisionHistory = [];
 }
+
+function clearStrategyLog() {
+	strategyLog = [];
+}
+
+function getStrategyLogExportData() {
+	return {
+		exportedAt: new Date().toISOString(),
+		version: typeof GM_info != 'undefined' && GM_info.script ? GM_info.script.version : "unknown",
+		config: getConfigSnapshot(),
+		matchHistory: matchHistory.slice(),
+		decisions: decisionHistory.slice(),
+		logs: strategyLog.slice()
+	};
+}
+
+function getMatchHistoryExportData() {
+	return {
+		exportedAt: new Date().toISOString(),
+		version: typeof GM_info != 'undefined' && GM_info.script ? GM_info.script.version : "unknown",
+		matches: matchHistory.slice()
+	};
+}
+
+function clearMatchHistory() {
+	matchHistory = [];
+	saveStoredMatchHistory();
+}
+
+function loadStoredMatchHistory() {
+	try {
+		var raw = window.localStorage.getItem("alphajongMatchHistory");
+		matchHistory = raw == null ? [] : JSON.parse(raw);
+		if (!Array.isArray(matchHistory)) {
+			matchHistory = [];
+		}
+	}
+	catch {
+		matchHistory = [];
+	}
+}
+
+function saveStoredMatchHistory() {
+	try {
+		window.localStorage.setItem("alphajongMatchHistory", JSON.stringify(matchHistory.slice(0, MATCH_HISTORY_LIMIT)));
+	}
+	catch {
+	}
+}
+
+function recordMatchResultIfNeeded() {
+	if (!isEndscreenShown()) {
+		lastRecordedEndscreenKey = "";
+		endscreenRecordActive = false;
+		return false;
+	}
+
+	if (endscreenRecordActive) {
+		return false;
+	}
+
+	var result = getMatchResultSnapshot();
+	if (result == null) {
+		return false;
+	}
+
+	var key = result.players.map(player => player.seat + ":" + player.score).join("|");
+	if (key == lastRecordedEndscreenKey) {
+		return false;
+	}
+	lastRecordedEndscreenKey = key;
+	endscreenRecordActive = true;
+
+	matchHistory.unshift(result);
+	if (matchHistory.length > MATCH_HISTORY_LIMIT) {
+		matchHistory.pop();
+	}
+	saveStoredMatchHistory();
+	recordStrategyLog("对局结束", "最终名次 " + result.ownRank + "/" + result.players.length + "，分数 " + result.ownScore, result);
+	return true;
+}
+
+function getMatchResultSnapshot() {
+	try {
+		var players = getPlayerScoresSnapshot();
+		if (players.length == 0) {
+			return null;
+		}
+
+		var sorted = players.slice().sort(function (a, b) {
+			if (b.score != a.score) {
+				return b.score - a.score;
+			}
+			return a.seat - b.seat;
+		});
+		for (var i = 0; i < sorted.length; i++) {
+			sorted[i].rank = i + 1;
+		}
+
+		for (let player of players) {
+			var ranked = sorted.find(other => other.localPosition == player.localPosition);
+			player.rank = ranked == null ? null : ranked.rank;
+		}
+
+		var own = players.find(player => player.localPosition == 0);
+		return {
+			id: "match_" + new Date().toISOString().replace(/[:.]/g, "-"),
+			endedAt: new Date().toISOString(),
+			mode: players.length + "人",
+			room: typeof ROOM == 'undefined' ? null : ROOM,
+			round: safeRead(function () { return getRound(); }, null),
+			roundWind: safeRead(function () { return getRoundWind(); }, null),
+			tilesLeft: tilesLeft,
+			ownRank: own == null ? null : own.rank,
+			ownScore: own == null ? null : own.score,
+			players: players,
+			config: getConfigSnapshot(),
+			recentDecisions: decisionHistory.slice(0, 20),
+			recentLogs: strategyLog.slice(0, 80)
+		};
+	}
+	catch {
+		return null;
+	}
+}
+
+function getPlayerScoresSnapshot() {
+	var players = [];
+	for (var player = 0; player < getNumberOfPlayers(); player++) {
+		players.push({
+			localPosition: player,
+			seat: safeRead(function () { return localPosition2Seat(player); }, player),
+			score: safeRead(function () { return getPlayerScore(player); }, 0),
+			riichi: safeRead(function () { return isPlayerRiichi(player); }, false),
+			calls: safeRead(function () { return getStringForTiles(calls[player] || []); }, ""),
+			discards: safeRead(function () { return getStringForTiles(discards[player] || []); }, "")
+		});
+	}
+	return players;
+}
+
+function safeRead(callback, fallback) {
+	try {
+		var value = callback();
+		return value == null ? fallback : value;
+	}
+	catch {
+		return fallback;
+	}
+}
+
+loadStoredMatchHistory();
 
 //Input string to get an array of tiles (e.g. "123m456p789s1z")
 function getTilesFromString(inputString) {

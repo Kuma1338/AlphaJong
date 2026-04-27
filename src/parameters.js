@@ -36,6 +36,8 @@ var THREE_PLAYER_PROFILE = true; //Use small strategy adjustments in 3 player ga
 var THREE_PLAYER_SAFETY_FACTOR = 1.08; //3 player hands tend to be higher value, so defend slightly earlier
 var THREE_PLAYER_CALL_FACTOR = 1.10; //3 player rewards fast/value calls slightly more
 var THREE_PLAYER_RIICHI_FACTOR = 1.05; //3 player riichi pressure is slightly stronger
+var PLACEMENT_STRATEGY = true; //Adjust push/fold by current placement
+var LATE_GAME_TENPAI = true; //Push a bit harder for tenpai late in the hand when danger is low
 
 
 
@@ -79,7 +81,13 @@ var timeSave = 0;
 var showingStrategy = false; //Current in own turn?
 var lastDecisionDetails = ""; //Detailed message for help mode.
 var decisionHistory = [];
+var strategyLog = [];
+var matchHistory = [];
+var lastRecordedEndscreenKey = "";
+var endscreenRecordActive = false;
 const DECISION_HISTORY_LIMIT = 20;
+const STRATEGY_LOG_LIMIT = 500;
+const MATCH_HISTORY_LIMIT = 50;
 const STRATEGY_NAME_CN = {
 	General: "常规",
 	Chiitoitsu: "七对子",
@@ -106,17 +114,142 @@ MODE = MODE == null ? AIMODE.AUTO : parseInt(MODE);
 
 const CONFIG_FIELDS = [
 	{ key: "PERFORMANCE_MODE", label: "计算精度", type: "number", min: 0, max: 4, step: 1, defaultValue: 3 },
-	{ key: "EFFICIENCY", label: "进攻效率", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
-	{ key: "SAFETY", label: "防守权重", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
-	{ key: "SAKIGIRI", label: "先切权重", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
-	{ key: "CALL_PON_CHI", label: "鸣牌倾向", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
-	{ key: "CALL_KAN", label: "杠牌倾向", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
-	{ key: "RIICHI", label: "立直倾向", type: "number", min: 0, max: 2, step: 0.1, defaultValue: 1.0 },
+	{ key: "EFFICIENCY", label: "进攻效率", type: "number", min: 0, max: 2, step: 0.01, defaultValue: 1.0, precision: 2 },
+	{ key: "SAFETY", label: "防守权重", type: "number", min: 0, max: 2, step: 0.01, defaultValue: 1.0, precision: 2 },
+	{ key: "SAKIGIRI", label: "先切权重", type: "number", min: 0, max: 2, step: 0.01, defaultValue: 1.0, precision: 2 },
+	{ key: "CALL_PON_CHI", label: "鸣牌倾向", type: "number", min: 0, max: 2, step: 0.01, defaultValue: 1.0, precision: 2 },
+	{ key: "CALL_KAN", label: "杠牌倾向", type: "number", min: 0, max: 2, step: 0.01, defaultValue: 1.0, precision: 2 },
+	{ key: "RIICHI", label: "立直倾向", type: "number", min: 0, max: 2, step: 0.01, defaultValue: 1.0, precision: 2 },
 	{ key: "KEEP_SAFETILE", label: "保留安牌", type: "boolean", defaultValue: false },
 	{ key: "MARK_TSUMOGIRI", label: "标记摸切", type: "boolean", defaultValue: false },
 	{ key: "CHANGE_RECOMMEND_TILE_COLOR", label: "辅助高亮推荐牌", type: "boolean", defaultValue: true },
-	{ key: "THREE_PLAYER_PROFILE", label: "三麻策略微调", type: "boolean", defaultValue: true }
+	{ key: "THREE_PLAYER_PROFILE", label: "三麻策略微调", type: "boolean", defaultValue: true },
+	{ key: "PLACEMENT_STRATEGY", label: "名次策略", type: "boolean", defaultValue: true },
+	{ key: "LATE_GAME_TENPAI", label: "末盘追听牌", type: "boolean", defaultValue: true }
 ];
+
+const CONFIG_PRESETS = [
+	{
+		name: "稳健防守",
+		description: "适合先降低放铳率，保留一定和牌能力。",
+		values: {
+			PERFORMANCE_MODE: 4,
+			EFFICIENCY: 1.05,
+			SAFETY: 1.25,
+			SAKIGIRI: 1.05,
+			CALL_PON_CHI: 1.15,
+			CALL_KAN: 0.35,
+			RIICHI: 1.00,
+			KEEP_SAFETILE: true,
+			MARK_TSUMOGIRI: false,
+			CHANGE_RECOMMEND_TILE_COLOR: true,
+			THREE_PLAYER_PROFILE: true,
+			PLACEMENT_STRATEGY: true,
+			LATE_GAME_TENPAI: true
+		}
+	},
+	{
+		name: "避四少放铳",
+		description: "偏防守，适合想减少三四名和大放铳。",
+		values: {
+			PERFORMANCE_MODE: 4,
+			EFFICIENCY: 1.00,
+			SAFETY: 1.35,
+			SAKIGIRI: 1.10,
+			CALL_PON_CHI: 1.10,
+			CALL_KAN: 0.20,
+			RIICHI: 0.90,
+			KEEP_SAFETILE: true,
+			MARK_TSUMOGIRI: false,
+			CHANGE_RECOMMEND_TILE_COLOR: true,
+			THREE_PLAYER_PROFILE: true,
+			PLACEMENT_STRATEGY: true,
+			LATE_GAME_TENPAI: true
+		}
+	},
+	{
+		name: "快速和牌",
+		description: "提高鸣牌和速度，适合东风局减少流局。",
+		values: {
+			PERFORMANCE_MODE: 4,
+			EFFICIENCY: 1.15,
+			SAFETY: 1.15,
+			SAKIGIRI: 1.00,
+			CALL_PON_CHI: 1.25,
+			CALL_KAN: 0.30,
+			RIICHI: 1.00,
+			KEEP_SAFETILE: true,
+			MARK_TSUMOGIRI: false,
+			CHANGE_RECOMMEND_TILE_COLOR: true,
+			THREE_PLAYER_PROFILE: true,
+			PLACEMENT_STRATEGY: true,
+			LATE_GAME_TENPAI: true
+		}
+	},
+	{
+		name: "三麻进攻",
+		description: "三麻偏快节奏，保留防守同时提高进攻和立直。",
+		values: {
+			PERFORMANCE_MODE: 4,
+			EFFICIENCY: 1.15,
+			SAFETY: 1.20,
+			SAKIGIRI: 1.00,
+			CALL_PON_CHI: 1.25,
+			CALL_KAN: 0.30,
+			RIICHI: 1.10,
+			KEEP_SAFETILE: true,
+			MARK_TSUMOGIRI: false,
+			CHANGE_RECOMMEND_TILE_COLOR: true,
+			THREE_PLAYER_PROFILE: true,
+			PLACEMENT_STRATEGY: true,
+			LATE_GAME_TENPAI: true
+		}
+	}
+];
+
+function getConfigField(key) {
+	return CONFIG_FIELDS.find(field => field.key == key);
+}
+
+function getConfigPrecision(field) {
+	if (field.type != "number") {
+		return 0;
+	}
+	if (field.precision != null) {
+		return field.precision;
+	}
+	return field.step >= 1 ? 0 : 2;
+}
+
+function normalizeConfigValue(field, value) {
+	if (field.type == "boolean") {
+		return value === true || value == "true";
+	}
+
+	var number = parseFloat(value);
+	if (isNaN(number)) {
+		number = field.defaultValue;
+	}
+	number = Math.min(Math.max(number, field.min), field.max);
+
+	if (field.step >= 1) {
+		return parseInt(Math.round(number));
+	}
+
+	var precision = getConfigPrecision(field);
+	return parseFloat(number.toFixed(precision));
+}
+
+function formatConfigValue(field, value) {
+	if (field.type == "boolean") {
+		return value ? "开启" : "关闭";
+	}
+	var normalized = normalizeConfigValue(field, value);
+	if (field.step >= 1) {
+		return String(normalized);
+	}
+	return normalized.toFixed(getConfigPrecision(field));
+}
 
 function getConfigValue(key) {
 	switch (key) {
@@ -131,11 +264,17 @@ function getConfigValue(key) {
 		case "MARK_TSUMOGIRI": return MARK_TSUMOGIRI;
 		case "CHANGE_RECOMMEND_TILE_COLOR": return CHANGE_RECOMMEND_TILE_COLOR;
 		case "THREE_PLAYER_PROFILE": return THREE_PLAYER_PROFILE;
+		case "PLACEMENT_STRATEGY": return PLACEMENT_STRATEGY;
+		case "LATE_GAME_TENPAI": return LATE_GAME_TENPAI;
 		default: return null;
 	}
 }
 
 function setConfigValue(key, value) {
+	var field = getConfigField(key);
+	if (field != null) {
+		value = normalizeConfigValue(field, value);
+	}
 	switch (key) {
 		case "PERFORMANCE_MODE": PERFORMANCE_MODE = parseInt(value); break;
 		case "EFFICIENCY": EFFICIENCY = parseFloat(value); break;
@@ -148,6 +287,25 @@ function setConfigValue(key, value) {
 		case "MARK_TSUMOGIRI": MARK_TSUMOGIRI = value === true || value == "true"; break;
 		case "CHANGE_RECOMMEND_TILE_COLOR": CHANGE_RECOMMEND_TILE_COLOR = value === true || value == "true"; break;
 		case "THREE_PLAYER_PROFILE": THREE_PLAYER_PROFILE = value === true || value == "true"; break;
+		case "PLACEMENT_STRATEGY": PLACEMENT_STRATEGY = value === true || value == "true"; break;
+		case "LATE_GAME_TENPAI": LATE_GAME_TENPAI = value === true || value == "true"; break;
+	}
+}
+
+function saveConfigValue(key, value) {
+	var field = getConfigField(key);
+	if (field == null) {
+		return null;
+	}
+	var normalized = normalizeConfigValue(field, value);
+	setConfigValue(key, normalized);
+	window.localStorage.setItem("alphajongConfig_" + key, normalized);
+	return normalized;
+}
+
+function applyConfigPreset(preset) {
+	for (let key in preset.values) {
+		saveConfigValue(key, preset.values[key]);
 	}
 }
 
@@ -155,7 +313,7 @@ function loadStoredConfig() {
 	for (let field of CONFIG_FIELDS) {
 		var storedValue = window.localStorage.getItem("alphajongConfig_" + field.key);
 		if (storedValue != null) {
-			setConfigValue(field.key, storedValue);
+			setConfigValue(field.key, normalizeConfigValue(field, storedValue));
 		}
 	}
 }
@@ -179,19 +337,96 @@ function isThreePlayerProfileActive() {
 }
 
 function getEffectiveSafety() {
-	return SAFETY * (isThreePlayerProfileActive() ? THREE_PLAYER_SAFETY_FACTOR : 1);
+	var factor = isThreePlayerProfileActive() ? THREE_PLAYER_SAFETY_FACTOR : 1;
+	if (isPlacementStrategyActive()) {
+		if (getOwnPlacement() == 1) {
+			factor *= 1.15;
+		}
+		else if (getOwnPlacement() == getNumberOfPlayers()) {
+			factor *= isLastGame() ? 0.90 : 0.96;
+		}
+		else if (getDistanceToLast() < -8000) {
+			factor *= 1.05;
+		}
+	}
+	return SAFETY * factor;
+}
+
+function getEffectiveEfficiency() {
+	var factor = 1;
+	if (isPlacementStrategyActive()) {
+		if (getOwnPlacement() == getNumberOfPlayers()) {
+			factor *= isLastGame() ? 1.12 : 1.07;
+		}
+		else if (getOwnPlacement() == 1 && getDistanceToFirst() < -8000) {
+			factor *= 0.95;
+		}
+	}
+	return EFFICIENCY * factor;
 }
 
 function getEffectiveCallPonChi() {
-	return CALL_PON_CHI * (isThreePlayerProfileActive() ? THREE_PLAYER_CALL_FACTOR : 1);
+	var factor = isThreePlayerProfileActive() ? THREE_PLAYER_CALL_FACTOR : 1;
+	if (isPlacementStrategyActive()) {
+		if (getOwnPlacement() == getNumberOfPlayers()) {
+			factor *= isLastGame() ? 1.12 : 1.07;
+		}
+		else if (getOwnPlacement() == 1 && getDistanceToFirst() < -6000) {
+			factor *= 0.92;
+		}
+	}
+	return CALL_PON_CHI * factor;
 }
 
 function getEffectiveCallKan() {
-	return CALL_KAN * (isThreePlayerProfileActive() ? THREE_PLAYER_CALL_FACTOR : 1);
+	var factor = isThreePlayerProfileActive() ? THREE_PLAYER_CALL_FACTOR : 1;
+	if (isPlacementStrategyActive()) {
+		if (getOwnPlacement() == 1 || getNumberOfRiichiOpponents() > 0) {
+			factor *= 0.65;
+		}
+		else if (getOwnPlacement() == getNumberOfPlayers()) {
+			factor *= 0.85;
+		}
+	}
+	return CALL_KAN * factor;
 }
 
 function getEffectiveRiichi() {
-	return RIICHI * (isThreePlayerProfileActive() ? THREE_PLAYER_RIICHI_FACTOR : 1);
+	var factor = isThreePlayerProfileActive() ? THREE_PLAYER_RIICHI_FACTOR : 1;
+	if (isPlacementStrategyActive()) {
+		if (getOwnPlacement() == getNumberOfPlayers()) {
+			factor *= 1.08;
+		}
+		else if (getOwnPlacement() == 1 && getDistanceToFirst() < -6000) {
+			factor *= 0.92;
+		}
+	}
+	return RIICHI * factor;
+}
+
+function isPlacementStrategyActive() {
+	try {
+		return PLACEMENT_STRATEGY && typeof getPlayerScore == 'function' && getNumberOfPlayers() >= 3;
+	}
+	catch {
+		return false;
+	}
+}
+
+function getOwnPlacement() {
+	try {
+		var ownScore = getPlayerScore(0);
+		var placement = 1;
+		for (var player = 1; player < getNumberOfPlayers(); player++) {
+			if (getPlayerScore(player) > ownScore) {
+				placement++;
+			}
+		}
+		return placement;
+	}
+	catch {
+		return 2;
+	}
 }
 
 loadStoredConfig();

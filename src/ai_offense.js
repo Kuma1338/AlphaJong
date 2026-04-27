@@ -116,6 +116,12 @@ async function callTriple(combinations, operation) {
 		return true;
 	}
 
+	if (shouldCallForLateTenpai(handValue, newHandValue)) {
+		log("Accept call to chase late-game tenpai.");
+		makeCallWithOption(operation, comb);
+		return true;
+	}
+
 	if (newHandValue.yaku.open < 0.15 && //Yaku chance is too bad
 		newHandTriples.pairs.filter(t => isValueTile(t) && getNumberOfTilesAvailable(t.index, t.type) >= 2).length < 2) { //And no value honor pair
 		log("Not enough Yaku! Declined! " + newHandValue.yaku.open + " < 0.15");
@@ -236,6 +242,14 @@ function callKan(operation, tileForCall) {
 
 	var newTiles = getHandValues(getHandWithCalls(removeTilesFromTileArray(ownHand, [tileForCall]))); //Check if efficiency goes down without additional tile
 
+	if (shouldDeclineKanByStrategy(tiles, newTiles)) {
+		if (operation == getOperations().ming_gang) {
+			declineCall(operation);
+		}
+		log("Kan declined by placement/danger strategy.");
+		return;
+	}
+
 	if (isPlayerRiichi(0) ||
 		(strategyAllowsCalls &&
 			tiles.shanten <= (tilesLeft / (getWallSize() / 2)) + callKanFactor &&
@@ -251,6 +265,31 @@ function callKan(operation, tileForCall) {
 		}
 		log("Kan declined!");
 	}
+}
+
+function shouldDeclineKanByStrategy(handValue, newHandValue) {
+	if (!isPlacementStrategyActive()) {
+		return false;
+	}
+
+	var handScore = isClosed ? handValue.score.riichi : handValue.score.open;
+	if (getNumberOfRiichiOpponents() > 0 && !isPlayerRiichi(0)) {
+		return handScore < 8000 || handValue.shanten > 0;
+	}
+
+	if (tilesLeft < 12 && handValue.shanten > 0) {
+		return true;
+	}
+
+	if (getOwnPlacement() == 1 && handScore < 8000) {
+		return true;
+	}
+
+	if (getOwnPlacement() == getNumberOfPlayers() && handValue.shanten > 1) {
+		return true;
+	}
+
+	return false;
 }
 
 function callRon() {
@@ -766,12 +805,12 @@ function getHandValues(hand, discardedTile) {
 		sakigiri = getSakigiriValue(hand, discardedTile);
 	}
 
-	var priority = calculateTilePriority(efficiency, expectedScore, danger - sakigiri);
+	var priority = calculateTilePriority(efficiency, expectedScore, danger - sakigiri, baseShanten, waits);
 
 	var riichiPriority = 0;
 	if (originalShanten == 0) { //Already in Tenpai: Look at waits instead
 		riichiEfficiency = waits / 10;
-		riichiPriority = calculateTilePriority(riichiEfficiency, expectedScore, danger - sakigiri);
+		riichiPriority = calculateTilePriority(riichiEfficiency, expectedScore, danger - sakigiri, baseShanten, waits);
 	}
 
 	return {
@@ -782,7 +821,7 @@ function getHandValues(hand, discardedTile) {
 
 //Calculates a relative priority based on how "good" the given values are.
 //The resulting priority value is useless as an absolute value, only use it relatively to compare with other values of the same hand.
-function calculateTilePriority(efficiency, expectedScore, danger) {
+function calculateTilePriority(efficiency, expectedScore, danger, shanten = null, waits = 0) {
 	var score = expectedScore.open;
 	if (isClosed) {
 		score = expectedScore.closed;
@@ -797,9 +836,10 @@ function calculateTilePriority(efficiency, expectedScore, danger) {
 	//Basically the formula should be efficiency multiplied by score (=expected value of the hand)
 	//But it's generally better to just win even with a small score to prevent others from winning (and no-ten penalty) 
 	//That's why efficiency is weighted a bit higher with Math.pow.
-	var weightedEfficiency = Math.pow(Math.abs(efficiency), 0.3 + EFFICIENCY * placementFactor);
+	var weightedEfficiency = Math.pow(Math.abs(efficiency), 0.3 + getEffectiveEfficiency() * placementFactor);
 	weightedEfficiency = efficiency < 0 ? -weightedEfficiency : weightedEfficiency;
 
+	score += getLateGameTenpaiBonus(shanten, waits);
 	score -= (danger * 2 * getEffectiveSafety());
 
 	if (weightedEfficiency < 0) { //Hotfix for negative efficiency (increasing shanten)
@@ -807,6 +847,33 @@ function calculateTilePriority(efficiency, expectedScore, danger) {
 	}
 
 	return weightedEfficiency * score;
+}
+
+function getLateGameTenpaiBonus(shanten, waits) {
+	if (!LATE_GAME_TENPAI || shanten == null || tilesLeft > 10 || getCurrentDangerLevel() > 1800) {
+		return 0;
+	}
+
+	if (shanten == 0) {
+		return 1000 + ((10 - tilesLeft) * 150) + (waits * 50);
+	}
+	if (shanten == 1 && tilesLeft <= 7) {
+		return 300 + ((7 - tilesLeft) * 80);
+	}
+	return 0;
+}
+
+function shouldCallForLateTenpai(handValue, newHandValue) {
+	if (!LATE_GAME_TENPAI || tilesLeft > 8 || getCurrentDangerLevel() > 1800) {
+		return false;
+	}
+	if (handValue.shanten <= 0 || newHandValue.shanten != 0) {
+		return false;
+	}
+	if (newHandValue.yaku.open < 0.15 && tilesLeft > 4) {
+		return false;
+	}
+	return true;
 }
 
 //Get Chiitoitsu Priorities -> Look for Pairs
@@ -880,7 +947,7 @@ function chiitoitsuPriorities() {
 
 		var sakigiri = getSakigiriValue(newHand, ownHand[i]);
 
-		var priority = calculateTilePriority(efficiency, expectedScore, danger - sakigiri);
+		var priority = calculateTilePriority(efficiency, expectedScore, danger - sakigiri, baseShanten, waits);
 		tiles.push({
 			tile: ownHand[i], priority: priority, riichiPriority: priority, shanten: baseShanten, efficiency: efficiency,
 			score: expectedScore, dora: doraValue, yaku: yaku, waits: waits, shape: shape, danger: danger, fu: 25
@@ -938,7 +1005,7 @@ function thirteenOrphansPriorities() {
 		var sakigiri = getSakigiriValue(hand, ownHand[i], danger);
 		var yakuman = calculateScore(0, 13);
 		var expectedScore = { open: 0, closed: yakuman, riichi: yakuman };
-		var priority = calculateTilePriority(efficiency, expectedScore, danger - sakigiri);
+		var priority = calculateTilePriority(efficiency, expectedScore, danger - sakigiri, shanten, waits);
 
 		tiles.push({
 			tile: ownHand[i], priority: priority, riichiPriority: priority, shanten: shanten, efficiency: efficiency,

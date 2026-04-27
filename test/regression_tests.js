@@ -7,7 +7,8 @@ function loadContext() {
 		window: {
 			localStorage: {
 				getItem() { return null; },
-				setItem() {}
+				setItem() {},
+				removeItem() {}
 			}
 		},
 		document: { body: { innerHTML: "" } },
@@ -192,10 +193,88 @@ function testThreePlayerProfileAdjustsEffectiveWeights() {
 	const result = runInContext(ctx, `
 		resetGlobals();
 		THREE_PLAYER_PROFILE = true;
+		PLACEMENT_STRATEGY = false;
 		doesPlayerExist = function(player) { return player < 3; };
 		Math.abs(getEffectiveSafety() - (SAFETY * THREE_PLAYER_SAFETY_FACTOR)) < 0.0001 &&
 			Math.abs(getEffectiveCallPonChi() - (CALL_PON_CHI * THREE_PLAYER_CALL_FACTOR)) < 0.0001 &&
 			Math.abs(getEffectiveRiichi() - (RIICHI * THREE_PLAYER_RIICHI_FACTOR)) < 0.0001;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testPlacementStrategyAdjustsEffectiveWeights() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		resetGlobals();
+		PLACEMENT_STRATEGY = true;
+		THREE_PLAYER_PROFILE = false;
+		getPlayerScore = function(player) { return [18000, 32000, 26000, 24000][player]; };
+		var lastPlacePush = getEffectiveEfficiency() > EFFICIENCY &&
+			getEffectiveCallPonChi() > CALL_PON_CHI &&
+			getEffectiveSafety() < SAFETY;
+		getPlayerScore = function(player) { return [36000, 25000, 21000, 18000][player]; };
+		var firstPlaceProtect = getEffectiveSafety() > SAFETY &&
+			getEffectiveCallKan() < CALL_KAN &&
+			getEffectiveRiichi() < RIICHI;
+		lastPlacePush && firstPlaceProtect;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testLateTenpaiBonusRewardsTenpaiWhenSafe() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		resetGlobals();
+		LATE_GAME_TENPAI = true;
+		tilesLeft = 6;
+		discards = [[], [], [], []];
+		calls = [[], [], [], []];
+		var tenpaiBonus = getLateGameTenpaiBonus(0, 4);
+		var twoShantenBonus = getLateGameTenpaiBonus(2, 0);
+		tenpaiBonus > 0 && twoShantenBonus === 0;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testLateNoTenPushAvoidsAutomaticFoldWhenSafe() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		resetGlobals();
+		LATE_GAME_TENPAI = true;
+		tilesLeft = 6;
+		discards = [[], [], [], []];
+		calls = [[], [], [], []];
+		shouldPushLateNoTen({ shanten: 2, danger: 100 });
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testConfigValuesClampAndKeepPrecision() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		saveConfigValue("SAFETY", 1.35);
+		var precise = SAFETY === 1.35 && formatConfigValue(getConfigField("SAFETY"), SAFETY) === "1.35";
+		saveConfigValue("CALL_KAN", 9);
+		var clampedHigh = CALL_KAN === 2;
+		saveConfigValue("RIICHI", -1);
+		var clampedLow = RIICHI === 0;
+		precise && clampedHigh && clampedLow;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testConfigPresetAppliesExpectedValues() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		var preset = CONFIG_PRESETS.find(p => p.name == "避四少放铳");
+		applyConfigPreset(preset);
+		SAFETY === 1.35 && CALL_KAN === 0.20 && KEEP_SAFETILE === true &&
+			RIICHI === 0.90 && PLACEMENT_STRATEGY === true && LATE_GAME_TENPAI === true;
 	`);
 
 	assert.strictEqual(result, true);
@@ -225,8 +304,66 @@ function testExportDataAndClearDecisionHistory() {
 		clearDecisionHistory();
 		exported.decisions.length == 1 &&
 			exported.config.SAFETY == SAFETY &&
+			exported.strategyLog.length >= 1 &&
 			bugReport.decisions.length == 1 &&
+			bugReport.strategyLog.length >= 1 &&
 			decisionHistory.length == 0;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testMatchResultRecordsRankAndPersists() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		resetGlobals();
+		var stored = {};
+		window.localStorage.setItem = function(key, value) { stored[key] = value; };
+		var endscreenShown = true;
+		var scores = [18000, 32000, 26000, 24000];
+		isEndscreenShown = function() { return endscreenShown; };
+		getPlayerScore = function(player) { return scores[player]; };
+		var didRecord = recordMatchResultIfNeeded();
+		scores = [12000, 36000, 28000, 24000];
+		var duplicate = recordMatchResultIfNeeded();
+		endscreenShown = false;
+		recordMatchResultIfNeeded();
+		endscreenShown = true;
+		var nextGame = recordMatchResultIfNeeded();
+		didRecord === true &&
+			duplicate === false &&
+			nextGame === true &&
+			matchHistory.length === 2 &&
+			matchHistory[1].ownRank === 4 &&
+			stored.alphajongMatchHistory != null;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testMatchResultSnapshotRanksPlayers() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		resetGlobals();
+		getPlayerScore = function(player) { return [18000, 32000, 26000, 24000][player]; };
+		var snapshot = getMatchResultSnapshot();
+		snapshot.ownRank === 4 &&
+			snapshot.ownScore === 18000 &&
+			snapshot.players.length === 4 &&
+			snapshot.players.find(player => player.localPosition == 1).rank === 1;
+	`);
+
+	assert.strictEqual(result, true);
+}
+
+function testStrategyLogExportIncludesLogsAndMatches() {
+	const ctx = loadContext();
+	const result = runInContext(ctx, `
+		resetGlobals();
+		recordStrategyLog("测试", "策略日志");
+		matchHistory.unshift({ ownRank: 2, ownScore: 26000, players: [] });
+		var exported = getStrategyLogExportData();
+		exported.logs.length >= 1 && exported.matchHistory.length == 1;
 	`);
 
 	assert.strictEqual(result, true);
@@ -243,8 +380,16 @@ async function main() {
 	testSujiTerminalIsSaferThanNoSuji();
 	testCountsRiichiOpponents();
 	testThreePlayerProfileAdjustsEffectiveWeights();
+	testPlacementStrategyAdjustsEffectiveWeights();
+	testLateTenpaiBonusRewardsTenpaiWhenSafe();
+	testLateNoTenPushAvoidsAutomaticFoldWhenSafe();
+	testConfigValuesClampAndKeepPrecision();
+	testConfigPresetAppliesExpectedValues();
 	testDecisionHistoryTrimsAndFormats();
 	testExportDataAndClearDecisionHistory();
+	testMatchResultRecordsRankAndPersists();
+	testMatchResultSnapshotRanksPlayers();
+	testStrategyLogExportIncludesLogsAndMatches();
 	console.log("Regression tests passed.");
 }
 

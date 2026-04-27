@@ -727,6 +727,12 @@ function getFoldThreshold(tilePrio, hand) {
 //Return true if danger is too high in relation to the value of the hand
 function shouldFold(tile, highestPrio = false) {
 	if (tile.shanten * 4 > tilesLeft) {
+		if (shouldPushLateNoTen(tile)) {
+			if (highestPrio) {
+				log("Hand is far, but danger is low and late tenpai push is active.");
+			}
+			return false;
+		}
 		if (highestPrio) {
 			log("Hand is too far from tenpai before end of game. Fold!");
 			strategy = STRATEGIES.FOLD;
@@ -748,6 +754,14 @@ function shouldFold(tile, highestPrio = false) {
 		return true;
 	}
 	return false;
+}
+
+function shouldPushLateNoTen(tilePrio) {
+	return LATE_GAME_TENPAI &&
+		tilesLeft <= 8 &&
+		tilePrio.shanten <= 2 &&
+		getCurrentDangerLevel() < 1500 &&
+		tilePrio.danger < 900;
 }
 
 //Decide whether to call Riichi

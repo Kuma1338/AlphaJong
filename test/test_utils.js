@@ -16,11 +16,15 @@ function resetGlobals() {
 	SAFETY = 1.0;
 	SAKIGIRI = 1.0;
 	KEEP_SAFETILE = false;
+	PLACEMENT_STRATEGY = true;
+	LATE_GAME_TENPAI = true;
 	isClosed = true;
 	testPlayerRiichi = [0, 0, 0, 0];
 	testPlayerHand = [13, 13, 13, 13];
 	riichiTiles = [null, null, null, null];
 	totalPossibleWaits = {};
+	lastRecordedEndscreenKey = "";
+	endscreenRecordActive = false;
 	PERFORMANCE_MODE = 4;
 	LOG_AMOUNT = 14;
 }
